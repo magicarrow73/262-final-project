@@ -84,9 +84,31 @@ def delete_user(username: str) -> bool:
 def create_message():
     # TODO
     pass
-def list_users():
-    # TODO
-    pass
+
+def list_users(pattern="*"):
+    """
+    List all users matching a wildcard pattern.
+    
+    - Uses standard wildcard syntax:
+      - `*` → Matches any number of characters (in SQL, `%`)
+      - `?` → Matches exactly one character (in SQL, `_`)
+    
+    Returns a list of tuples (username, display_name).
+    """
+    
+    # Convert standard wildcards (* → %, ? → _)
+    sql_pattern = pattern.replace("*", "%").replace("?", "_")
+
+    c = get_connection()
+    cur = c.cursor()
+    
+    # Query for users with pattern
+    cur.execute("SELECT username, display_name FROM users WHERE username LIKE ?", (sql_pattern,))
+    
+    rows = cur.fetchall()
+    c.close()
+    
+    return [(row["username"], row["display_name"]) for row in rows]
     
 def get_messages_for_user(username: str):
     # TODO
