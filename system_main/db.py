@@ -104,27 +104,3 @@ def mark_message_read():
 def delete_message():
     # TODO
     pass
-
-if __name__ == "__main__":
-    init_db()
-    #create a user
-    from utils import hash_password
-
-    pw_hash = hash_password("mypassword")
-
-    created = create_user("alice", pw_hash, "Alice Smith")
-    print("User created:", created)
-
-    #check the user exists
-    row = get_user_by_username("alice")
-    # check that the user was created correctly, and that row contains reasonable data
-    print("Retrieved user:", row["username"], row["password_hash"], row["display_name"])
-
-    #delete the user from the database
-    deleted = delete_user("alice")
-    print("User deleted:", deleted)
-    
-    # check that users cannot be deleted twice
-    delete_user("alice")
-    
-    # check that 
