@@ -3,19 +3,17 @@ import threading
 import json
 
 from .db import (
-    init_db, create_user, get_user_by_username, delete_user,
+    init_db, close_db, create_user, get_user_by_username, delete_user,
     create_message, list_users, get_messages_for_user, 
     mark_message_read, delete_message, get_num_unread_messages 
 )
 from .utils import hash_password, verify_password
 
-# Server class to handle incoming connections
 class Server:
-    
     def __init__(self, host="127.0.0.1", port = 12345, protocol_type = "json"):
-        '''
-        Initialize the server with host and port.
-        '''
+        """
+        Initialize server with host and port
+        """
         self.host = host
         self.port = port
         self.protocol_type = protocol_type
@@ -29,15 +27,15 @@ class Server:
         self.socket_per_username = {}
         
     def start(self):
-        '''
-        Start the server and listen for incoming connections.
-        Accept incoming connections and handle requests continuously.
-        '''
-        
-        # bind the server to the host and port
+        """
+        Start server, bind, listen, and accept incoming connections
+        """
+        #initialize db tables
+        init_db()
+        #bind server to host and port
         self.server.bind((self.host, self.port))
         self.server.listen(5)
-        print(f"Server started on {self.host}:{self.port}")
+        print(f"Server started on {self.host}:{self.port} (protocol={self.protocol_type})")
         
         # accept incoming connections
         try:
@@ -48,17 +46,17 @@ class Server:
                 client_handler.start()
             
         except KeyboardInterrupt:
-            print("Server shutting down...")
-            # self.server.close()
+            print("[Server] Shutting down the server rip gg...")
         finally:
+            #close db and server socket
+            close_db()
             self.server.close()  
      
     def handle_client(self, client_socket):
-        ''' 
-        Handle client requests.
-        Accept incoming requests and process them.
-        '''
-        
+        """
+        Dispatch to current protocol handler
+        After the protocol handler finishes, remove user from active_users
+        """
         # handle the client based on the protocol type
         if self.protocol_type == "json":
             self.handle_json_client(client_socket)
@@ -66,7 +64,7 @@ class Server:
             # TODO
             pass
         else:
-            print("[Server] Invalid protocol type.")
+            print("[Server] Invalid protocol type, please specify a new one.")
         
         # cleanup after client disconnects (or error)
         if client_socket in self.active_users:
@@ -84,11 +82,10 @@ class Server:
         client_socket.close()
          
     def handle_json_client(self, client_socket):
-        '''
-        Handle JSON client requests.
-        Accept incoming requests and process them.
-        Sends response back to client.
-        '''
+        """
+        Handle JSON client requests
+        That is, read JSON object from socket, dispatch based on command, send back JSON response
+        """
         try:
             while True:
                 # receive data from the client
@@ -99,8 +96,8 @@ class Server:
                 # decode + parse the data as JSON
                 try: 
                     request = json.loads(data.decode('utf-8'))
-                except: 
-                    print("[Server] Invalid JSON received.")
+                except json.JSONDecodeError: 
+                    print("[Server] Invalid JSON received, please double check the format.")
                     break
                 
                 # log the request
@@ -117,11 +114,11 @@ class Server:
                 elif command == "list_users":
                     response = self.list_users_command(request)
                 elif command == "send_message":
-                    response = self.send_message_command(request)
+                    response = self.send_message_command(request, client_socket)
                 elif command == "read_messages":
-                    response = self.read_messages_command(request)
+                    response = self.read_messages_command(request, client_socket)
                 elif command == "delete_messages":
-                    response = self.delete_messages_command(request)
+                    response = self.delete_messages_command(request, client_socket)
                 elif command == "delete_user":
                     response = self.delete_user_command(request)
                 else:
@@ -132,15 +129,13 @@ class Server:
         # handle any errors, for now just print the error
         # the client socket will be closed in the main `handle_client` method
         except Exception as e:
-            print(f"[Server] Error: {e}")
+            print(f"[Server] Error handling client: {e}")
                
-    ### START OF JSON COMMAND HANDLERS
-    '''
-    Command handlers for the server take as an argument the JSON request, 
-    handle the request, and return a JSON response
-    '''
-    ### START OF JSON COMMAND HANDLERS
-    
+    # ===== JSON Command Handlers =====
+    """
+    Command handlers for the server take as an argument the JSON request, handle the request, and return a JSON response
+    """
+
     def create_user_command(self, request, client_socket):
         '''
         Create user command handler. Creates user and adds to database; returns response.
@@ -159,13 +154,11 @@ class Server:
         
         # send response back to client
         if success:
+            self.active_users[client_socket] = username
+            self.socket_per_username[username] = client_socket
             response = {"status": "success", "message": "User created successfully."}
         else:
             response = {"status": "error", "message": "Username already taken."}
-            
-        # add user to active users
-        self.active_users[client_socket] = username
-        self.socket_per_username[username] = client_socket
         return response
                 
     def login_command(self, request, client_socket):
@@ -190,12 +183,14 @@ class Server:
             response = {"status": "error", "message": "Incorrect password."}
             return response
         
-        # get the number of unread messages
-        unread_count = get_num_unread_messages(username)
-        response = {"status": "success", "message": "Login successful.", "unread_count": unread_count}
         # add user to active users
         self.active_users[client_socket] = username
         self.socket_per_username[username] = client_socket
+        
+        # get the number of unread messages
+        unread_count = get_num_unread_messages(username)
+        response = {"status": "success", "message": "Login successful.", "unread_count": unread_count}
+
         # return response
         return response
                  
@@ -217,19 +212,95 @@ class Server:
         return response
         
     # command to send a message
-    def send_message_command(self, request):
-        # TODO
-        pass
+    def send_message_command(self, request, client_socket):
+        """
+        Send a message from currently logged in user to specified receiver
+        Request expects "command"="send_message", "receiver"=..., "content"=...
+        """
+        sender = self.active_users.get(client_socket)
+        if not sender:
+            return {"status": "error", "message": "You are not logged in."}
+        
+        receiver = request.get("receiver")
+        content = request.get("content", "")
+        if not receiver:
+            return {"status": "error", "message": "No receiver specified."}
+        
+        success = create_message(sender, receiver, content)
+        if success:
+            return {"status": "success", "message": "Message sent."}
+        else:
+            return {"status": "error", "message": "Could not send message (user not found?)."}
+        
     # command to read messages
-    def read_messages_command(self, request):
-        # TODO
-        pass
+    def read_messages_command(self, request, client_socket):
+        """
+        Get messages for currently logged in user
+        Optional "only_unread" acts as a filter
+        Optional "mark_read" can mark all returned messages as read
+        """
+        username = self.active_users.get(client_socket)
+        if not username:
+            return {"status": "error", "message": "You are not logged in."}
+        
+        only_unread = bool(request.get("only_unread", False))
+        mark_as_read = bool(request.get("mark_read", False))
+        
+        messages = get_messages_for_user(username, only_unread=only_unread)
+        
+        #mark each returned message as read
+        if mark_as_read:
+            for msg in messages:
+                mark_message_read(msg["id"], username)
+        
+        #convert messages to JSON serializable format
+        output = []
+        for m in messages:
+            output.append({
+                "id": m["id"],
+                "sender_id": m["sender_id"],
+                "receiver_id": m["receiver_id"],
+                "content": m["content"],
+                "timestamp": m["timestamp"],
+                "read_status": m["read_status"],
+            })
+        
+        return {"status": "success", "messages": output}
+
     # command to delete messages
-    def delete_messages_command(self, request):
-        # TODO
-        pass
+    def delete_messages_command(self, request, client_socket):
+        """
+        Delete one or more messages for logged in user
+        Expects "message_id" as an int or "message_ids" as a list
+        """
+        username = self.active_users.get(client_socket)
+        if not username:
+            return {"status": "error", "message": "You are not logged in."}
+        
+        #allow for either single message_id or list of message_ids
+        message_id = request.get("message_id")
+        message_ids = request.get("message_ids", [])
+        deleted_count = 0
+        
+        if message_id:
+            if delete_message(message_id, username):
+                deleted_count += 1
+        
+        if isinstance(message_ids, list):
+            for mid in message_ids:
+                if delete_message(mid, username):
+                    deleted_count += 1
+        
+        if deleted_count > 0:
+            return {"status": "success", "deleted_count": deleted_count}
+        else:
+            return {"status": "error", "message": "No messages deleted."}
+
     # command to delete a user
     def delete_user_command(self, request):
+        """
+        Delete a specified user from the database and cascade delete their messages
+        """
         username = request.get("username")
         success = delete_user(username)
         if success:
@@ -237,9 +308,8 @@ class Server:
         else:
             response = {"status": "error", "message": "User not found."}
         return response
-    
-    ### end of JSON command handlers 
-    ### end of server class          
+
+# ===== Main Function =====
        
 def main():
     
@@ -249,10 +319,11 @@ def main():
     parser = argparse.ArgumentParser(description="Start the server.")
     parser.add_argument("--host", type=str, default="127.0.0.1", help="Host to bind to")
     parser.add_argument("--port", type=int, default=12345, help="Port to bind to")
+    parser.add_argument("--protocol", type=str, default="json", help="Protocol: either json or custom wire protocol")
     args = parser.parse_args()
     
     # start the server
-    server = Server(host=args.host, port=args.port)
+    server = Server(host=args.host, port=args.port, protocol_type=args.protocol)
     server.start()
 
 
