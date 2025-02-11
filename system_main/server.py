@@ -168,7 +168,6 @@ class Server:
         self.socket_per_username[username] = client_socket
         return response
                 
-    # command to login a user
     def login_command(self, request, client_socket):
         '''
         Login command handler. 
@@ -187,24 +186,35 @@ class Server:
             return response
         
         # verify the password
-        if verify_password(password, user["password_hash"]):
-        
-            # get the number of unread messages
-            unread_count = get_num_unread_messages(username)
-            response = {"status": "success", "message": "Login successful.", "unread_count": unread_count}
-            # add user to active users
-            self.active_users[client_socket] = username
-            self.socket_per_username[username] = client_socket
-            
-        else:
+        if not verify_password(password, user["password_hash"]):
             response = {"status": "error", "message": "Incorrect password."}
+            return response
+        
+        # get the number of unread messages
+        unread_count = get_num_unread_messages(username)
+        response = {"status": "success", "message": "Login successful.", "unread_count": unread_count}
+        # add user to active users
+        self.active_users[client_socket] = username
+        self.socket_per_username[username] = client_socket
+        # return response
         return response
-            
-            
+                 
     # command to list users
     def list_users_command(self, request):
-        # TODO
-        pass
+        '''
+        List users command handler. 
+        Sends a list of users matching the given pattern; if no pattern is given, return all users.
+        Returns response.
+        '''
+        pattern = request.get("pattern", "*")
+        users = list_users(pattern)
+        
+        # format the users into a list of dictionaries
+        users_list = [{"username": u[0], "display_name": u[1]} for u in users]
+        
+        # return response to send back to client
+        response = {"status": "success", "users": users_list}
+        return response
         
     # command to send a message
     def send_message_command(self, request):
