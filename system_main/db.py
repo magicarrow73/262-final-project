@@ -43,8 +43,11 @@ def create_user(username: str, password_hash: str, display_name: str) -> bool:
         """, (username, password_hash, display_name))
         conn.commit()
         return True
+    
     except sqlite3.IntegrityError:
-        #raise IntegrityError if username is already being used
+        # raise IntegrityError if username is already being used
+        # in this case should not allow to create a new user
+        print("Username already taken!")
         return False
     finally:
         conn.close()
@@ -69,16 +72,38 @@ def delete_user(username: str) -> bool:
     # First, see if user exists
     row = get_user_by_username(username)
     if not row:
+        # User not found
+        print("User not found!")
         return False
 
     user_id = row["id"]
     conn = get_connection()
     cur = conn.cursor()
     cur.execute("DELETE FROM users WHERE id = ?", (user_id,))
+    
+    # check if any rows were deleted. Should be 1 if user was found.
     deleted_count = cur.rowcount
     conn.commit()
     conn.close()
     return deleted_count > 0
+
+def create_message():
+    # TODO
+    pass
+def list_users():
+    # TODO
+    pass
+    
+def get_messages_for_user():
+    # TODO
+    pass
+def mark_message_read():
+    # TODO
+    pass
+
+def delete_message():
+    # TODO
+    pass
 
 if __name__ == "__main__":
     init_db()
@@ -92,8 +117,14 @@ if __name__ == "__main__":
 
     #check the user exists
     row = get_user_by_username("alice")
+    # check that the user was created correctly, and that row contains reasonable data
     print("Retrieved user:", row["username"], row["password_hash"], row["display_name"])
 
     #delete the user from the database
     deleted = delete_user("alice")
     print("User deleted:", deleted)
+    
+    # check that users cannot be deleted twice
+    delete_user("alice")
+    
+    # check that 
