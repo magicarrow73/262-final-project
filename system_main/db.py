@@ -9,12 +9,12 @@ def get_connection():
     If you use multiple threads, you can set check_same_thread=False.
     """
     conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-    conn.row_factory = sqlite3.Row  # so we can access columns by name
+    conn.row_factory = sqlite3.Row  #we want to access columns by name
     return conn
 
 def init_db():
     """
-    Creates the 'users' table if it doesn't exist.
+    Creates the 'users' table if it does not exist
     """
     conn = get_connection()
     cur = conn.cursor()
@@ -31,7 +31,8 @@ def init_db():
 
 def create_user(username: str, password_hash: str, display_name: str) -> bool:
     """
-    Insert a new user. Return True if successful, False if username is taken.
+    Insert a new user
+    Return True if successful and False if username is taken
     """
     conn = get_connection()
     cur = conn.cursor()
@@ -43,8 +44,7 @@ def create_user(username: str, password_hash: str, display_name: str) -> bool:
         conn.commit()
         return True
     except sqlite3.IntegrityError:
-        # If the username is already in use (unique constraint),
-        # an IntegrityError is raised
+        #raise IntegrityError if username is already being used
         return False
     finally:
         conn.close()
@@ -52,7 +52,7 @@ def create_user(username: str, password_hash: str, display_name: str) -> bool:
 
 def get_user_by_username(username: str):
     """
-    Return the row for the given username, or None if not found.
+    Return the row for the given username or None if not found
     """
     conn = get_connection()
     cur = conn.cursor()
@@ -63,7 +63,8 @@ def get_user_by_username(username: str):
 
 def delete_user(username: str) -> bool:
     """
-    Delete the user with given username, return True if found/deleted, else False.
+    Delete the user with given username
+    Return True if found/deleted else False
     """
     # First, see if user exists
     row = get_user_by_username(username)
@@ -81,7 +82,7 @@ def delete_user(username: str) -> bool:
 
 if __name__ == "__main__":
     init_db()
-    # create a user
+    #create a user
     from utils import hash_password
 
     pw_hash = hash_password("mypassword")
@@ -89,10 +90,10 @@ if __name__ == "__main__":
     created = create_user("alice", pw_hash, "Alice Smith")
     print("User created:", created)
 
-    # check the user
+    #check the user exists
     row = get_user_by_username("alice")
     print("Retrieved user:", row["username"], row["password_hash"], row["display_name"])
 
-    # delete the user
+    #delete the user from the database
     deleted = delete_user("alice")
     print("User deleted:", deleted)
