@@ -5,7 +5,7 @@ import json
 from .db import (
     init_db, create_user, get_user_by_username, delete_user,
     create_message, list_users, get_messages_for_user, 
-    mark_message_read, delete_message, 
+    mark_message_read, delete_message, get_num_unread_messages 
 )
 from .utils import hash_password, verify_password
 
@@ -40,65 +40,6 @@ class Server:
             # self.server.close()
         finally:
             self.server.close()  
-    
-    ### START OF JSON COMMAND HANDLERS
-    
-    # command handlers for the server take as an argument the JSON request, 
-    # handle the request, and return a JSON response
-
-    # command to create a new user
-    def create_user_command(self, request):
-        
-            username = request.get("username")
-            password = request.get("password")
-            display_name = request.get("display_name")
-            
-            # hash the password
-            hashed_pw = hash_password(password)
-            
-            # create the user
-            success = create_user(username, hashed_pw, display_name)
-            
-            # send response back to client
-            if success:
-                response = {"status": "success", "message": "User created successfully."}
-            else:
-                response = {"status": "error", "message": "Username already taken."}
-            return response
-                
-    # command to login a user
-    def login_command(self, request):
-        # TODO
-        pass
-        
-    # command to list users
-    def list_users_command(self, request):
-        # TODO
-        pass
-        
-    # command to send a message
-    def send_message_command(self, request):
-        # TODO
-        pass
-    # command to read messages
-    def read_messages_command(self, request):
-        # TODO
-        pass
-    # command to delete messages
-    def delete_messages_command(self, request):
-        # TODO
-        pass
-    # command to delete a user
-    def delete_user_command(self, request):
-        username = request.get("username")
-        success = delete_user(username)
-        if success:
-            response = {"status": "success", "message": "User deleted successfully."}
-        else:
-            response = {"status": "error", "message": "User not found."}
-        return response
-                
-    ### end of command handlers           
     
     
     # handle client requests   
@@ -149,9 +90,90 @@ class Server:
         # close the client socket if error
         finally:
             client_socket.close()       
-              
+    
+    
+    ### START OF JSON COMMAND HANDLERS
+    
+    # command handlers for the server take as an argument the JSON request, 
+    # handle the request, and return a JSON response
 
-
+    # command to create a new user
+    def create_user_command(self, request):
+    
+        username = request.get("username")
+        password = request.get("password")
+        display_name = request.get("display_name")
+        
+        # hash the password
+        hashed_pw = hash_password(password)
+        
+        # create the user
+        success = create_user(username, hashed_pw, display_name)
+        
+        # send response back to client
+        if success:
+            response = {"status": "success", "message": "User created successfully."}
+        else:
+            response = {"status": "error", "message": "Username already taken."}
+        return response
+                
+    # command to login a user
+    # incorrect login attempt should return an error message
+    # successful login command should return a response which contains the number of unread messages
+    def login_command(self, request):
+        
+        username = request.get("username")
+        password = request.get("password")
+        
+        # get the user from the database
+        user = get_user_by_username(username)
+        
+        # if user does not exist, show error message 'User not found'.
+        if not user:
+            response = {"status": "error", "message": "User not found."}
+            return response
+        
+        # verify the password
+        if verify_password(password, user["password_hash"]):
+        
+            # get the number of unread messages
+            unread_count = get_num_unread_messages(username)
+            response = {"status": "success", "message": "Login successful.", "unread_count": unread_count}
+        else:
+            response = {"status": "error", "message": "Incorrect password."}
+        return response
+            
+            
+    # command to list users
+    def list_users_command(self, request):
+        # TODO
+        pass
+        
+    # command to send a message
+    def send_message_command(self, request):
+        # TODO
+        pass
+    # command to read messages
+    def read_messages_command(self, request):
+        # TODO
+        pass
+    # command to delete messages
+    def delete_messages_command(self, request):
+        # TODO
+        pass
+    # command to delete a user
+    def delete_user_command(self, request):
+        username = request.get("username")
+        success = delete_user(username)
+        if success:
+            response = {"status": "success", "message": "User deleted successfully."}
+        else:
+            response = {"status": "error", "message": "User not found."}
+        return response
+    
+    ### end of JSON command handlers 
+    ### end of server class          
+       
 def main():
     
     import argparse

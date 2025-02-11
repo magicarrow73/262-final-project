@@ -88,7 +88,11 @@ def list_users():
     # TODO
     pass
     
-def get_messages_for_user():
+def get_messages_for_user(username: str):
+    # TODO
+    pass
+
+def get_num_unread_messages(username: str):
     # TODO
     pass
 def mark_message_read():
