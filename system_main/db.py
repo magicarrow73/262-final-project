@@ -87,6 +87,24 @@ def delete_user(username: str) -> bool:
     conn.close()
     return deleted_count > 0
 
+def create_message():
+    # TODO
+    pass
+def list_users():
+    # TODO
+    pass
+    
+def get_messages_for_user():
+    # TODO
+    pass
+def mark_message_read():
+    # TODO
+    pass
+
+def delete_message():
+    # TODO
+    pass
+
 if __name__ == "__main__":
     init_db()
     #create a user
