@@ -1,24 +1,25 @@
 import os
 import sqlite3
 
-DB_PATH = os.getenv('CHAT_DB_PATH', 'chat.db')
+conn = None
 
 def get_connection():
     """
-    Opens a connection to our SQLite database. 
-    If you use multiple threads, you can set check_same_thread=False.
+    Returns a global SQLite connection so we have the same database across all calls
     """
-    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-    conn.row_factory = sqlite3.Row  #we want to access columns by name
+    global conn
+    if conn is None:
+        db_path = os.getenv("CHAT_DB_PATH", "chat.db")
+        conn = sqlite3.connect(db_path, check_same_thread=False)
+        conn.row_factory = sqlite3.Row
     return conn
 
 def init_db():
     """
     Creates the 'users' table if it does not exist
     """
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("""
+    c = get_connection()
+    c.execute("""
     CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT UNIQUE NOT NULL,
@@ -27,21 +28,19 @@ def init_db():
     )
     """)
     conn.commit()
-    conn.close()
 
 def create_user(username: str, password_hash: str, display_name: str) -> bool:
     """
     Insert a new user
     Return True if successful and False if username is taken
     """
-    conn = get_connection()
-    cur = conn.cursor()
+    c = get_connection()
     try:
-        cur.execute("""
+        c.execute("""
         INSERT INTO users (username, password_hash, display_name)
         VALUES (?, ?, ?)
         """, (username, password_hash, display_name))
-        conn.commit()
+        c.commit()
         return True
     
     except sqlite3.IntegrityError:
@@ -49,19 +48,15 @@ def create_user(username: str, password_hash: str, display_name: str) -> bool:
         # in this case should not allow to create a new user
         print("Username already taken!")
         return False
-    finally:
-        conn.close()
-
 
 def get_user_by_username(username: str):
     """
     Return the row for the given username or None if not found
     """
-    conn = get_connection()
-    cur = conn.cursor()
+    c = get_connection()
+    cur = c.cursor()
     cur.execute("SELECT * FROM users WHERE username = ?", (username,))
     row = cur.fetchone()
-    conn.close()
     return row
 
 def delete_user(username: str) -> bool:
@@ -77,14 +72,13 @@ def delete_user(username: str) -> bool:
         return False
 
     user_id = row["id"]
-    conn = get_connection()
-    cur = conn.cursor()
+    c = get_connection()
+    cur = c.cursor()
     cur.execute("DELETE FROM users WHERE id = ?", (user_id,))
     
     # check if any rows were deleted. Should be 1 if user was found.
     deleted_count = cur.rowcount
-    conn.commit()
-    conn.close()
+    c.commit()
     return deleted_count > 0
 
 def create_message():
@@ -104,3 +98,12 @@ def mark_message_read():
 def delete_message():
     # TODO
     pass
+
+def close_db():
+    """
+    Manually close the global connection
+    """
+    global conn
+    if conn is not None:
+        conn.close()
+        conn = None

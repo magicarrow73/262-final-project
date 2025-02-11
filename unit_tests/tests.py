@@ -3,7 +3,7 @@ import os
 
 os.environ["CHAT_DB_PATH"] = ":memory:"
 
-from system_main.db import init_db, create_user, get_user_by_username, delete_user
+from system_main.db import init_db, create_user, get_user_by_username, delete_user, close_db
 from system_main.utils import hash_password, verify_password
 
 
@@ -12,12 +12,14 @@ class TestUserOperations(unittest.TestCase):
         """
         Runs before each test method, calls init_db() to give each test a clean slate
         """
-        print("DB_PATH is now:", os.getenv("CHAT_DB_PATH"))
         init_db()
         self.username = "rahul"
         self.password = "secret123"
         self.hashed_pw = hash_password(self.password)
         self.display_name = "Rahul"
+
+    def tearDown(self):
+        close_db()
 
     def test_create_user(self):
         """
@@ -36,7 +38,6 @@ class TestUserOperations(unittest.TestCase):
         create_user(self.username, self.hashed_pw, self.display_name)
         row = get_user_by_username(self.username)
         self.assertIsNotNone(row, f"Should find '{self.username}' in DB")
-
         stored_hash = row["password_hash"]
         self.assertTrue(verify_password(self.password, stored_hash), "verify_password should match the stored hash")
 
@@ -47,8 +48,6 @@ class TestUserOperations(unittest.TestCase):
         create_user(self.username, self.hashed_pw, self.display_name)
         was_deleted = delete_user(self.username)
         self.assertTrue(was_deleted, f"Deleting existing user '{self.username}' should succeed")
-
-        #user should be gone
         row = get_user_by_username(self.username)
         self.assertIsNone(row, f"User '{self.username}' should no longer exist in DB")
 
