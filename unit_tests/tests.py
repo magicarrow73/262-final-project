@@ -26,10 +26,10 @@ class TestUserOperations(unittest.TestCase):
         Verify that we can create a new user and that creating the same user again returns False because it is a duplicate
         """
         success = create_user(self.username, self.hashed_pw, self.display_name)
-        self.assertTrue(success, "Creating a fresh user should succeed")
+        self.assertTrue(success)
         #this is the second creation so it should fail
         duplicate = create_user(self.username, self.hashed_pw, self.display_name)
-        self.assertFalse(duplicate, "Duplicate username creation should fail")
+        self.assertFalse(duplicate)
 
     def test_get_user_by_username(self):
         """
@@ -37,9 +37,9 @@ class TestUserOperations(unittest.TestCase):
         """
         create_user(self.username, self.hashed_pw, self.display_name)
         row = get_user_by_username(self.username)
-        self.assertIsNotNone(row, f"Should find '{self.username}' in DB")
+        self.assertIsNotNone(row)
         stored_hash = row["password_hash"]
-        self.assertTrue(verify_password(self.password, stored_hash), "verify_password should match the stored hash")
+        self.assertTrue(verify_password(self.password, stored_hash))
 
     def test_delete_user(self):
         """
@@ -47,9 +47,9 @@ class TestUserOperations(unittest.TestCase):
         """
         create_user(self.username, self.hashed_pw, self.display_name)
         was_deleted = delete_user(self.username)
-        self.assertTrue(was_deleted, f"Deleting existing user '{self.username}' should succeed")
+        self.assertTrue(was_deleted)
         row = get_user_by_username(self.username)
-        self.assertIsNone(row, f"User '{self.username}' should no longer exist in DB")
+        self.assertIsNone(row)
 
 if __name__ == "__main__":
     unittest.main()
