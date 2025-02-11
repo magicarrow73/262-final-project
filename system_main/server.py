@@ -12,13 +12,13 @@ from .utils import hash_password, verify_password
 # Server class to handle incoming connections
 class Server:
     
-    def __init__(self, host="127.0.0.1", port = 12345):
+    def __init__(self, host="127.0.0.1", port = 12345, protocol_type = "json"):
         '''
         Initialize the server with host and port.
         '''
         self.host = host
         self.port = port
-        
+        self.protocol_type = protocol_type
         # server socket
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         
@@ -53,16 +53,16 @@ class Server:
         finally:
             self.server.close()  
      
-    def handle_client(self, client_socket, protocol_type = "json"):
+    def handle_client(self, client_socket):
         ''' 
         Handle client requests.
         Accept incoming requests and process them.
         '''
         
         # handle the client based on the protocol type
-        if protocol_type == "json":
+        if self.protocol_type == "json":
             self.handle_json_client(client_socket)
-        elif protocol_type == "custom":
+        elif self.protocol_type == "custom":
             # TODO
             pass
         else:
