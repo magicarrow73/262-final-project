@@ -1,57 +1,56 @@
 import unittest
+import os
+
+os.environ["CHAT_DB_PATH"] = ":memory:"
+
 from system_main.db import init_db, create_user, get_user_by_username, delete_user
 from system_main.utils import hash_password, verify_password
 
 
 class TestUserOperations(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
+    def setUp(self):
         """
-        This will run run once before all tests, and we call init_db() to make sure 'users' table exists
+        Runs before each test method, calls init_db() to give each test a clean slate
         """
+        print("DB_PATH is now:", os.getenv("CHAT_DB_PATH"))
         init_db()
+        self.username = "rahul"
+        self.password = "secret123"
+        self.hashed_pw = hash_password(self.password)
+        self.display_name = "Rahul"
 
     def test_create_user(self):
         """
         Verify that we can create a new user and that creating the same user again returns False because it is a duplicate
         """
-        username = "rahul"
-        password = "secret123"
-        hashed_pw = hash_password(password)
-        display_name = "Rahul"
-
-        #this is the first creation so it should succeed
-        success = create_user(username, hashed_pw, display_name)
+        success = create_user(self.username, self.hashed_pw, self.display_name)
         self.assertTrue(success, "Creating a fresh user should succeed")
-
         #this is the second creation so it should fail
-        duplicate = create_user(username, hashed_pw, display_name)
+        duplicate = create_user(self.username, self.hashed_pw, self.display_name)
         self.assertFalse(duplicate, "Duplicate username creation should fail")
 
     def test_get_user_by_username(self):
         """
-        Check that we can retrieve the user we created, and that the stored hash is correct
+        Recreate the user and verify that we can retrieve it correctly
         """
-        username = "rahul"
-        password = "secret123"
-
-        row = get_user_by_username(username)
-        self.assertIsNotNone(row, "Should find 'rahul' in DB")
+        create_user(self.username, self.hashed_pw, self.display_name)
+        row = get_user_by_username(self.username)
+        self.assertIsNotNone(row, f"Should find '{self.username}' in DB")
 
         stored_hash = row["password_hash"]
-        self.assertTrue(verify_password(password, stored_hash), "verify_password should match the stored hash")
+        self.assertTrue(verify_password(self.password, stored_hash), "verify_password should match the stored hash")
 
     def test_delete_user(self):
         """
         Verify we can delete the user correctly
         """
-        username = "rahul"
-        was_deleted = delete_user(username)
-        self.assertTrue(was_deleted, "Deleting existing user 'rahul' should succeed")
+        create_user(self.username, self.hashed_pw, self.display_name)
+        was_deleted = delete_user(self.username)
+        self.assertTrue(was_deleted, f"Deleting existing user '{self.username}' should succeed")
 
-        # Now it should be gone
-        row = get_user_by_username(username)
-        self.assertIsNone(row, "User 'rahul' should no longer exist in DB")
+        #user should be gone
+        row = get_user_by_username(self.username)
+        self.assertIsNone(row, f"User '{self.username}' should no longer exist in DB")
 
 if __name__ == "__main__":
     unittest.main()
