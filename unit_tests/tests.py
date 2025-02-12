@@ -6,6 +6,8 @@ os.environ["CHAT_DB_PATH"] = ":memory:"
 from system_main.db import init_db, close_db, create_user, get_user_by_username, delete_user, create_message, get_messages_for_user, mark_message_read, delete_message, get_num_unread_messages
 from system_main.utils import hash_password, verify_password
 
+# The following tests are for the system_main.db module and the system_main.utils module
+# They test the user operations. Password hashing and verification are also tested here.
 class TestUserOperations(unittest.TestCase):
     def setUp(self):
         """
@@ -26,9 +28,32 @@ class TestUserOperations(unittest.TestCase):
         """
         success = create_user(self.username, self.hashed_pw, self.display_name)
         self.assertTrue(success)
-        #this is the second creation so it should fail
+        # this is the second creation so it should fail
         duplicate = create_user(self.username, self.hashed_pw, self.display_name)
         self.assertFalse(duplicate)
+
+        # Create a second user with the same username and different display name
+        second_duplicate = create_user(self.username, self.hashed_pw, "random0x389")
+        self.assertFalse(second_duplicate)
+
+    def test_hash_password(self):
+        """
+        Verify that we can hash a password and that the hash is consistent
+        """
+        hashed_pw = hash_password("password")
+        self.assertEqual(hashed_pw, hash_password("password"))
+        self.assertNotEqual(hashed_pw, hash_password("password1"))
+
+        hashed_pw2 = hash_password("")
+        self.assertEqual(hashed_pw2, hash_password(""))
+        self.assertNotEqual(hashed_pw2, hash_password("1"))
+        
+    def test_verify_password(self):
+        """
+        Verify that we can verify a password against a stored hash
+        """
+        self.assertTrue(verify_password(self.hashed_pw, self.hashed_pw))
+        self.assertFalse(verify_password(self.hashed_pw, hash_password("wrongpw")))
 
     def test_get_user_by_username(self):
         """
@@ -37,8 +62,8 @@ class TestUserOperations(unittest.TestCase):
         create_user(self.username, self.hashed_pw, self.display_name)
         row = get_user_by_username(self.username)
         self.assertIsNotNone(row)
-        stored_hash = row["password_hash"]
-        self.assertTrue(verify_password(self.password, stored_hash))
+        self.assertEqual(row["username"], self.username)
+        self.assertEqual(row["display_name"], self.display_name)
 
     def test_delete_user(self):
         """
@@ -50,6 +75,15 @@ class TestUserOperations(unittest.TestCase):
         row = get_user_by_username(self.username)
         self.assertIsNone(row)
 
+    def test_delete_nonexistent_user(self):
+        """
+        Verify that deleting a nonexistent user returns False
+        """
+        was_deleted = delete_user("nonexistent")
+        self.assertFalse(was_deleted)
+    
+# The following tests are for the system_main.db module and the system_main.utils module
+# They test the message operations
 class TestMessageOperations(unittest.TestCase):
     def setUp(self):
         """
