@@ -304,7 +304,7 @@ class TkClient:
         pass_entry.pack()
 
         def on_ok():
-            user = user_entry.get()
+            user = user_entry.get().strip()
             pw = pass_entry.get()
             hashed = hash_password(pw)
             w.destroy()
@@ -430,7 +430,6 @@ class TkClient:
             pattern_to_use = pattern.get().strip()
             if not pattern_to_use:
                 pattern_to_use = "*"
-            w.destroy()
             if self.use_json:
                 req = {"command": "list_users", "pattern": pattern_to_use}
                 self.send_json(req)
