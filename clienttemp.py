@@ -27,7 +27,7 @@ class TkClient:
         tk.Button(self.btn_frame, text="Create Account", command=self.create_account_dialog).pack(side=tk.LEFT)
         tk.Button(self.btn_frame, text="Login", command=self.login_dialog).pack(side=tk.LEFT)
         tk.Button(self.btn_frame, text="Send", command=self.send_dialog).pack(side=tk.LEFT)
-        tk.Button(self.btn_frame, text="List", command=self.list_accounts_dialog).pack(side=tk.LEFT)
+        tk.Button(self.btn_frame, text="List", command=self.list_accounts).pack(side=tk.LEFT)
         tk.Button(self.btn_frame, text="Read", command=self.read_messages).pack(side=tk.LEFT)
         tk.Button(self.btn_frame, text="Delete Msg", command=self.delete_msg_dialog).pack(side=tk.LEFT)
         tk.Button(self.btn_frame, text="Del Account", command=self.delete_account).pack(side=tk.LEFT)
