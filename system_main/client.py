@@ -62,22 +62,25 @@ class TkClient:
         if self.use_json:
             try:
                 obj = json.loads(line)
-                # Check if it's a response or a NOTIFY
-                if obj.get("command") == "NOTIFY":
-                    # push notification
-                    self.log(f"[NOTIFY] {obj}")
+                status = obj.get("status")
+                message = obj.get("message", "")
+                if status == "success":
+                    self.log(f"[SUCCESS] {message}")
+                    # If there are messages in the response, display them
+                    if "messages" in obj:
+                        self.log("Messages:")
+                        for m in obj["messages"]:
+                            self.log(f"  ID={m['id']}, from={m['sender_id']}, content={m['content']}")
+                elif status == "error":
+                    self.log(f"[ERROR] {message}")
                 else:
-                    # It's presumably a {"response": "..."}
-                    resp = obj.get("response", "")
-                    self.log(resp)
-            except:
-                self.log(f"[Invalid JSON] {line}")
+                    # Fallback if there's no status or it's something else
+                    self.log(f"[RESPONSE] {obj}")
+            except json.JSONDecodeError:
+                self.log(f"[Invalid JSON from server] {line}")
         else:
-            # Custom wire
-            if line.startswith("NOTIFY"):
-                self.log(f"[NOTIFICATION] {line}")
-            else:
-                self.log(line)
+            # Custom wire wich we have not implemented yet
+            self.log(line)
 
     def log(self, msg):
         self.text_area.config(state='normal')
@@ -104,7 +107,7 @@ class TkClient:
         try:
             self.sock.sendall((line + "\n").encode('utf-8'))
         except:
-            self.log("[Error] Failed to send")
+            self.log("[Error] Failed to send wire")
 
     def send_json(self, obj):
         """
@@ -142,17 +145,14 @@ class TkClient:
             w.destroy()
             if self.use_json:
                 req = {
-                    "command": "CREATE",
+                    "command": "create_user",
                     "username": username,
                     "password": password,
                     "display_name": display
                 }
                 self.send_json(req)
             else:
-                # e.g. CREATE pass username display
-                # but we must match the server's parsing logic
-                # The server expects: CREATE <username> <password> <display_name> 
-                # but the sample code had a tricky parse. Let's do a simpler approach:
+                #custom protocol
                 line = f"CREATE {username} {password} {display}"
                 self.send_line(line)
 
@@ -175,7 +175,7 @@ class TkClient:
             pw = pass_entry.get()
             w.destroy()
             if self.use_json:
-                req = {"command": "LOGIN", "username": user, "password": pw}
+                req = {"command": "login", "username": user, "password": pw}
                 self.send_json(req)
             else:
                 self.send_line(f"LOGIN {user} {pw}")
@@ -199,7 +199,7 @@ class TkClient:
             msg = msg_entry.get()
             w.destroy()
             if self.use_json:
-                req = {"command": "SEND", "to": to_user, "message": msg}
+                req = {"command": "send_message", "to": to_user, "content": msg}
                 self.send_json(req)
             else:
                 self.send_line(f"SEND {to_user} {msg}")
@@ -208,13 +208,13 @@ class TkClient:
 
     def list_accounts(self):
         if self.use_json:
-            self.send_json({"command": "LIST"})
+            self.send_json({"command": "list_users"})
         else:
             self.send_line("LIST")
 
     def read_messages(self):
         if self.use_json:
-            self.send_json({"command": "READ"})
+            self.send_json({"command": "read_messages"})
         else:
             self.send_line("READ")
 
@@ -230,7 +230,7 @@ class TkClient:
             mid = msg_id_entry.get()
             w.destroy()
             if self.use_json:
-                req = {"command": "DELETE_MSG", "id": mid}
+                req = {"command": "delete_messages", "id": int(mid)}
                 self.send_json(req)
             else:
                 self.send_line(f"DELETE_MSG {mid}")
@@ -239,7 +239,20 @@ class TkClient:
 
     def delete_account(self):
         if self.use_json:
-            self.send_json({"command": "DELETE_ACCOUNT"})
+            w = tk.Toplevel(self.root)
+            w.title("Delete Account")
+
+            tk.Label(w, text="Username to delete").pack()
+            user_entry = tk.Entry(w)
+            user_entry.pack()
+
+            def on_ok():
+                user = user_entry.get()
+                w.destroy()
+                req = {"command": "delete_user", "username": user}
+                self.send_json(req)
+
+            tk.Button(w, text="OK", command=on_ok).pack()
         else:
             self.send_line("DELETE_ACCOUNT")
 
@@ -249,7 +262,7 @@ class TkClient:
 
 def main():
     import argparse
-    parser = argparse.ArgumentParser(description="Run the Chat Client.")
+    parser = argparse.ArgumentParser(description="Run our messaging client")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=12345)
     parser.add_argument("--json", action="store_true", default=False)
