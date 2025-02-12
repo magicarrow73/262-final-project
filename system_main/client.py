@@ -171,7 +171,7 @@ class TkClient:
             self.entry.delete(0, tk.END)
             self.send_line(line)
 
-    ### Sending Data ###
+    # ===== sending data =====
     
     def send_line(self, line: str):
         """
@@ -193,7 +193,7 @@ class TkClient:
         except Exception as e:
             self.log(f"[Error] Failed to send JSON: {e}")
 
-    ### Dialogs ###
+    # ===== dialogs =====
 
     def create_account_dialog(self):
         """
@@ -491,7 +491,7 @@ class TkClient:
 
         tk.Button(w, text="OK", command=on_ok).pack()
 
-    ### Run: Main Loop ###
+    # ===== run main loop =====
     def run(self):
         """
         Start the main loop and connect to the server.

@@ -123,7 +123,7 @@ class Server:
                 elif command == "logout":
                     response = self.logout_command(request, client_socket)
                 elif command == "list_users":
-                    response = self.list_users_command(request)
+                    response = self.list_users_command(request, client_socket)
                 elif command == "send_message":
                     response = self.send_message_command(request, client_socket)
                 elif command == "read_messages":
@@ -137,7 +137,6 @@ class Server:
                 # send response back to client
                 client_socket.send((json.dumps(response) + "\n").encode('utf-8'))
 
-    
         # handle any errors, for now just print the error
         # the client socket will be closed in the main `handle_client` method
         except Exception as e:
@@ -257,7 +256,7 @@ class Server:
             if len(tokens) > 1:
                 pattern = tokens[1]
             fake_req = {"pattern": pattern}
-            resp = self.list_users_command(fake_req)
+            resp = self.list_users_command(fake_req, client_socket)
             if resp["status"] == "success":
                 users = resp["users"]
                 lines = [f"OK Found {len(users)} user(s)."]
@@ -338,7 +337,7 @@ class Server:
             return "ERR Unknown command"
             
 
-    # ===== JSON Command Handlers =====
+    # ===== JSON command handlers =====
     """
     Command handlers for the server take as an argument the JSON request, handle the request, and return a JSON response
     """
@@ -421,18 +420,27 @@ class Server:
         return {"status": "success", "message": f"User {username} is now logged out, thanks for playing"}
                  
     # command to list users
-    def list_users_command(self, request):
+    def list_users_command(self, request, client_socket):
         '''
         List users command handler. 
         Sends a list of users matching the given pattern; if no pattern is given, return all users.
         Returns response.
         '''
+        # with self.lock:
+        #     if client_socket not in self.active_users:
+        #         return {"status": "error", "message": "No user is currently logged in on this connection"}
+
+        with self.lock:
+            username = self.active_users.get(client_socket)
+            if not username:
+                return {"status": "error", "message": "You are not logged in."}
+
         pattern = request.get("pattern", "*")
         users = list_users(pattern)
-        
+
         # format the users into a list of dictionaries
         users_list = [{"username": u[0], "display_name": u[1]} for u in users]
-        
+
         # return response to send back to client
         response = {"status": "success", "users": users_list, "pattern": pattern}
         return response
