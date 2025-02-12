@@ -93,6 +93,10 @@ class TkClient:
 
                 elif status == "error":
                     self.log(f"[ERROR] {message}")
+                elif status == 'user_exists':
+                    self.log(message)
+                    existing_username = obj.get("username", "")
+                    self.prompt_login_for_existing_user(existing_username)
                 else:
                     self.log(f"[RESPONSE] {obj}")
 
@@ -199,6 +203,32 @@ class TkClient:
                 self.send_json(req)
             else:
                 self.send_line(f"LOGIN {user} {pw}")
+
+        tk.Button(w, text="OK", command=on_ok).pack()
+
+    def prompt_login_for_existing_user(self, username):
+        """
+        Pops up a small dialog to let user log in with the known username.
+        """
+        w = tk.Toplevel(self.root)
+        w.title(f"Login: {username} already exists")
+
+        tk.Label(w, text=f"Username: {username}").pack()
+        tk.Label(w, text="Password").pack()
+
+        pass_entry = tk.Entry(w, show="*")
+        pass_entry.pack()
+
+        def on_ok():
+            pw = pass_entry.get()
+            w.destroy()
+            if self.use_json:
+                # send login command with known username
+                req = {"command": "login", "username": username, "password": pw}
+                self.send_json(req)
+            else:
+                # custom protocol
+                self.send_line(f"LOGIN {username} {pw}")
 
         tk.Button(w, text="OK", command=on_ok).pack()
 

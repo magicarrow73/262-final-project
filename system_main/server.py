@@ -151,19 +151,25 @@ class Server:
     def create_user_command(self, request, client_socket):
         '''
         Create user command handler. Creates user and adds to database; returns response.
-        If username already exists, return error message.
+        If username already exists, return user_exists so client can prompt for login.
         If user is created successfully, return success message.
         '''
         username = request.get("username")
         password = request.get("password")
         display_name = request.get("display_name")
-        
+
+        existing_user = get_user_by_username(username)
+        if existing_user is not None:
+            return {
+                "status": "user_exists",
+                "message": f"User '{username}' already exists. Please try to log in instead.",
+                "username": username
+            }
+
         # hash the password
         hashed_pw = hash_password(password)
-        
         # create the user
         success = create_user(username, hashed_pw, display_name)
-        
         # send response back to client
         if success:
             #do not automatically log in user
@@ -171,7 +177,7 @@ class Server:
             #self.socket_per_username[username] = client_socket
             response = {"status": "success", "message": "User created successfully."}
         else:
-            response = {"status": "error", "message": "Username already taken."}
+            response = {"status": "error", "message": "Could not create user because of unknown error."}
         return response
                 
     def login_command(self, request, client_socket):
