@@ -443,8 +443,8 @@ class TkClient:
     def delete_account(self):
 
         w = tk.Toplevel(self.root)
-        w.title("Are you sure you want to delete your account? Press OK to confirm.")
-
+        w.title("Delete Account")
+        tk.Label(w, text="Are you sure you want to delete your account? Press OK to confirm.").pack()
         def on_ok():
             w.destroy()
             if self.use_json:
