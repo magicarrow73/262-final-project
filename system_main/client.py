@@ -7,10 +7,11 @@ from .utils import hash_password
 
 class TkClient:
     def __init__(self, host="127.0.0.1", port=12345, use_json=True):
-        '''
+        """
         Initialize the client with the host, port, and whether to use JSON.
         use_json: if True, the client will use JSON for communication. Otherwise, it will use a custom wire protocol.
-        '''
+        """
+
         self.host = host
         self.port = port
         self.use_json = use_json
@@ -40,6 +41,9 @@ class TkClient:
         tk.Button(self.btn_frame, text="Delete Account", command=self.delete_account).pack(side=tk.LEFT)
 
     def connect(self):
+        """
+        Connect to the server and start a listener thread.
+        """
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.connect((self.host, self.port))
 
@@ -150,6 +154,9 @@ class TkClient:
                 self.log("[RESPONSE] " + line)
 
     def log(self, msg):
+        """
+        Log a message to the text area.
+        """
         self.text_area.config(state='normal')
         self.text_area.insert(tk.END, msg + "\n")
         self.text_area.config(state='disabled')
@@ -164,20 +171,35 @@ class TkClient:
             self.entry.delete(0, tk.END)
             self.send_line(line)
 
+    ### Sending Data ###
+    
     def send_line(self, line: str):
+        """
+        Send a line of text to the server.
+        """
         try:
             self.sock.sendall((line + "\n").encode('utf-8'))
         except:
             self.log("[Error] Failed to send wire")
 
     def send_json(self, obj):
+        """
+        Send a JSON object to the server.
+        """
+
         try:
             line = json.dumps(obj) + "\n"
             self.sock.sendall(line.encode('utf-8'))
         except Exception as e:
             self.log(f"[Error] Failed to send JSON: {e}")
 
+    ### Dialogs ###
+
     def create_account_dialog(self):
+        """
+        Opens a dialog to create a new account with a username, password, and display name.
+        """
+
         w = tk.Toplevel(self.root)
         w.title("Create Account")
 
@@ -216,6 +238,9 @@ class TkClient:
         tk.Button(w, text="OK", command=on_ok).pack()
 
     def login_dialog(self):
+        """
+        Opens a dialog to log in with a username and password.
+        """
         w = tk.Toplevel(self.root)
         w.title("Login")
 
@@ -287,6 +312,10 @@ class TkClient:
         tk.Button(w, text="OK", command=on_ok).pack()
 
     def send_dialog(self):
+        """
+        Opens a dialog to send a message to another user.
+        """
+
         w = tk.Toplevel(self.root)
         w.title("Send Message")
 
@@ -404,6 +433,11 @@ class TkClient:
         tk.Button(w, text="OK", command=on_ok).pack()
 
     def delete_msg_dialog(self):
+        """
+        Pop up a dialog that:
+        1) Asks for a message ID or comma-separated list of message IDs
+        2) Sends the request to the server to delete the message(s)
+        """
         w = tk.Toplevel(self.root)
         w.title("Delete Message(s)")
 
@@ -441,7 +475,9 @@ class TkClient:
         tk.Button(w, text="OK", command=on_ok).pack()
 
     def delete_account(self):
-
+        """
+        Pop up a dialog to confirm account deletion
+        """
         w = tk.Toplevel(self.root)
         w.title("Delete Account")
         tk.Label(w, text="Are you sure you want to delete your account? Press OK to confirm.").pack()
@@ -455,7 +491,11 @@ class TkClient:
 
         tk.Button(w, text="OK", command=on_ok).pack()
 
+    ### Run: Main Loop ###
     def run(self):
+        """
+        Start the main loop and connect to the server.
+        """
         self.connect()
         self.root.mainloop()
 
