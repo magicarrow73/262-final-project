@@ -111,6 +111,8 @@ class Server:
                     response = self.create_user_command(request, client_socket)
                 elif command == "login":
                     response = self.login_command(request, client_socket)
+                elif command == "logout":
+                    response = self.logout_command(request, client_socket)
                 elif command == "list_users":
                     response = self.list_users_command(request)
                 elif command == "send_message":
@@ -163,8 +165,9 @@ class Server:
         
         # send response back to client
         if success:
-            self.active_users[client_socket] = username
-            self.socket_per_username[username] = client_socket
+            #do not automatically log in user
+            #self.active_users[client_socket] = username
+            #self.socket_per_username[username] = client_socket
             response = {"status": "success", "message": "User created successfully."}
         else:
             response = {"status": "error", "message": "Username already taken."}
@@ -202,6 +205,19 @@ class Server:
 
         # return response
         return response
+    
+    def logout_command(self, request, client_socket):
+        """
+        Logout command handler
+        Removes current user from active_users so they are not logged in anymore
+        """
+        username = self.active_users.get(client_socket)
+        if not username:
+            return {"status": "error", "message": "No user is currently logged in on this connection"}
+        del self.active_users[client_socket]
+        if username in self.socket_per_username:
+            del self.socket_per_username[username]
+        return {"status": "success", "message": f"User {username} is now logged out, thanks for playing"}
                  
     # command to list users
     def list_users_command(self, request):

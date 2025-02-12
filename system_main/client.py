@@ -26,6 +26,7 @@ class TkClient:
 
         tk.Button(self.btn_frame, text="Create Account", command=self.create_account_dialog).pack(side=tk.LEFT)
         tk.Button(self.btn_frame, text="Login", command=self.login_dialog).pack(side=tk.LEFT)
+        tk.Button(self.btn_frame, text="Logout", command=self.logout_dialog).pack(side=tk.LEFT)
         tk.Button(self.btn_frame, text="Send", command=self.send_dialog).pack(side=tk.LEFT)
         tk.Button(self.btn_frame, text="List", command=self.list_accounts).pack(side=tk.LEFT)
         tk.Button(self.btn_frame, text="Read", command=self.read_messages).pack(side=tk.LEFT)
@@ -202,6 +203,31 @@ class TkClient:
                 self.send_line(f"LOGIN {user} {pw}")
 
         tk.Button(w, text="OK", command=on_ok).pack()
+
+    def logout_dialog(self):
+        """
+        Shows a small dialog asking user to confirm they want to log out
+        If confirmation is obtained sends logout command to server
+        """
+        w = tk.Toplevel(self.root)
+        w.title("Logout?")
+
+        tk.Label(w, text="Do you confirm logout decision?").pack()
+
+        def confirm():
+            #send logout if yes
+            w.destroy()
+            if self.use_json:
+                self.send_json({"command": "logout"})
+            else:
+                self.send_line("LOGOUT") #custom protocol
+        
+        def cancel():
+            w.destroy()
+
+        tk.Button(w, text="Yes", command=confirm).pack(side=tk.LEFT)
+        tk.Button(w, text="No", command=cancel).pack(side=tk.LEFT)
+
 
     def send_dialog(self):
         w = tk.Toplevel(self.root)
