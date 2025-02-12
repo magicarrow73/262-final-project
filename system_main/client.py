@@ -314,10 +314,49 @@ class TkClient:
 
 
     def read_messages(self):
-        if self.use_json:
-            self.send_json({"command": "read_messages"})
-        else:
-            self.send_line("READ")
+        """
+        Pop up a dialog that:
+        1) Shows a checkbox to choose "unread only" versus all messages
+        2) An entry field for how many messages to fetch
+        3) Sends the request with those parameters to the server
+        """
+        w = tk.Toplevel(self.root)
+        w.title("Read Messages")
+
+        unread_var = tk.BooleanVar(value=False)
+        chk = tk.Checkbutton(w, text="Only Unread?", variable=unread_var)
+        chk.pack()
+
+        tk.Label(w, text="How many messages (leave blank for all)").pack()
+        limit_entry = tk.Entry(w)
+        limit_entry.pack()
+
+        def on_ok():
+            only_unread = unread_var.get()  # either True or False
+            limit_str = limit_entry.get().strip()
+            w.destroy()
+
+            req = {"command": "read_messages"}
+
+            # user wants only unread messages
+            if only_unread:
+                req["only_unread"] = True
+
+            # user wants a specific limit on messages
+            if limit_str:
+                try:
+                    limit_val = int(limit_str)
+                    req["limit"] = limit_val
+                except ValueError:
+                    self.log("[Error] Please enter a valid positive integer for the message limit.")
+                    return
+
+            if self.use_json:
+                self.send_json(req)
+            else:
+                pass
+
+        tk.Button(w, text="OK", command=on_ok).pack()
 
     def delete_msg_dialog(self):
         w = tk.Toplevel(self.root)

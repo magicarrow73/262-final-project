@@ -267,20 +267,26 @@ class Server:
     # command to read messages
     def read_messages_command(self, request, client_socket):
         """
-        Get messages for currently logged in user
-        Optional "only_unread" acts as a filter
-        Optional "mark_read" can mark all returned messages as read
+        Get messages for currently logged in user.
+        - only_unread: bool
+        - limit: integer limit
+        Return them in descending timestamp order.
         """
         username = self.active_users.get(client_socket)
         if not username:
             return {"status": "error", "message": "You are not logged in."}
         
         only_unread = bool(request.get("only_unread", False))
-        mark_as_read = bool(request.get("mark_read", False))
+        limit = request.get("limit", None)
+        if limit is not None:
+            try:
+                limit = int(limit)
+            except ValueError:
+                limit = None
         
-        messages = get_messages_for_user(username, only_unread=only_unread)
-        
-        #mark each returned message as read
+        messages = get_messages_for_user(username, only_unread=only_unread, limit=limit)
+
+        mark_as_read = bool(request.get("mark_read", False))        
         if mark_as_read:
             for msg in messages:
                 mark_message_read(msg["id"], username)

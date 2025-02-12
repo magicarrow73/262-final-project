@@ -153,11 +153,11 @@ def create_message(sender_username: str, receiver_username: str, content: str) -
     c.commit()
     return True
     
-def get_messages_for_user(username: str, only_unread: bool = False):
+def get_messages_for_user(username: str, only_unread: bool = False, limit: int=None):
     """
-    Return all messages for the user
-    If only_unread is True then return only messages where read_status = 0
-    Ordered by descending timestamp so the newest messages are first
+    Return all messages for the user, optionally only the unread ones
+    Return in descending order of message timestamp
+    Return up to 'limit' messages if specified
     """
     c = get_connection()
     user_row = get_user_by_username(username)
@@ -186,7 +186,12 @@ def get_messages_for_user(username: str, only_unread: bool = False):
     base_query += " ORDER BY messages.timestamp DESC"
     
     cur = c.cursor()
-    cur.execute(base_query, (receiver_id,))
+
+    if limit is not None and isinstance(limit, int) and limit > 0:
+        base_query += " LIMIT ?"
+        cur.execute(base_query, (receiver_id, limit))
+    else:
+        cur.execute(base_query, (receiver_id,))
     return cur.fetchall()
 
 def get_num_unread_messages(username: str) -> int:
