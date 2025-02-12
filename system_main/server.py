@@ -103,7 +103,7 @@ class Server:
                 print(f"[Server] Received request: {request}")
                 
                 # get command
-                unprocessed_command = request.get("command").lower()
+                unprocessed_command = request.get("command", "")
                 command = unprocessed_command.lower() if isinstance(unprocessed_command, str) else "" #make sure command is a string to avoid attribute error
                 
                 # process command
