@@ -3,6 +3,9 @@ import socket
 import threading
 import json
 
+from .utils import (
+    hash_password, verify_password
+)
 class TkClient:
     def __init__(self, host="127.0.0.1", port=12345, use_json=True):
         '''
@@ -184,18 +187,20 @@ class TkClient:
             username = user_entry.get()
             password = pass_entry.get()
             display = disp_entry.get()
+
+            hashed_password = hash_password(password)
             w.destroy()
             if self.use_json:
                 req = {
                     "command": "create_user",
                     "username": username,
-                    "password": password,
+                    "hashed_password": hashed_password,
                     "display_name": display
                 }
                 self.send_json(req)
             else:
                 #custom protocol
-                line = f"CREATE {username} {password} {display}"
+                line = f"CREATE {username} {hashed_password} {display}"
                 self.send_line(line)
 
         tk.Button(w, text="OK", command=on_ok).pack()
@@ -215,12 +220,13 @@ class TkClient:
         def on_ok():
             user = user_entry.get()
             pw = pass_entry.get()
+            hashed_password = hash_password(pw)
             w.destroy()
             if self.use_json:
-                req = {"command": "login", "username": user, "password": pw}
+                req = {"command": "login", "username": user, "hashed_password": hashed_password}
                 self.send_json(req)
             else:
-                self.send_line(f"LOGIN {user} {pw}")
+                self.send_line(f"LOGIN {user} {hashed_password}")
 
         tk.Button(w, text="OK", command=on_ok).pack()
 
@@ -239,10 +245,11 @@ class TkClient:
 
         def on_ok():
             pw = pass_entry.get()
+            hashed_password = hash_password(pw)
             w.destroy()
             if self.use_json:
                 # send login command with known username
-                req = {"command": "login", "username": username, "password": pw}
+                req = {"command": "login", "username": username, "hashed_password": hashed_password}
                 self.send_json(req)
             else:
                 # custom protocol

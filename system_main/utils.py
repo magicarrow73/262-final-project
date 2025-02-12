@@ -15,13 +15,13 @@ def hash_password(password: str) -> str:
   
 
 
-def verify_password(password: str, stored_hash: str) -> bool:
+def verify_password(hashed_password: str, stored_hash: str) -> bool:
    """
-   Verifies the given password against the stored hash
+   Verifies the given hashed_password against the stored hash
    """
   
    try:
-       return hash_password(password) == stored_hash
+       return hashed_password == stored_hash
    except:
        print("System Error while verifying password.")
        return False

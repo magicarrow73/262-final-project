@@ -155,7 +155,7 @@ class Server:
         If user is created successfully, return success message.
         '''
         username = request.get("username")
-        password = request.get("password")
+        hashed_password = request.get("hashed_password")
         display_name = request.get("display_name")
 
         existing_user = get_user_by_username(username)
@@ -166,10 +166,8 @@ class Server:
                 "username": username
             }
 
-        # hash the password
-        hashed_pw = hash_password(password)
         # create the user
-        success = create_user(username, hashed_pw, display_name)
+        success = create_user(username, hashed_password, display_name)
         # send response back to client
         if success:
             #do not automatically log in user
@@ -187,7 +185,7 @@ class Server:
         Successful login command should return a response which contains the number of unread messages.
         '''
         username = request.get("username")
-        password = request.get("password")
+        hashed_password = request.get("hashed_password")
         
         # get the user from the database
         user = get_user_by_username(username)
@@ -198,7 +196,7 @@ class Server:
             return response
         
         # verify the password
-        if not verify_password(password, user["password_hash"]):
+        if not verify_password(hashed_password, user["password_hash"]):
             response = {"status": "error", "message": "Incorrect password."}
             return response
         
