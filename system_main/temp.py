@@ -32,7 +32,7 @@ class TkClient:
         tk.Button(self.btn_frame, text="Login", command=self.login_dialog).pack(side=tk.LEFT)
         tk.Button(self.btn_frame, text="Send", command=self.send_dialog).pack(side=tk.LEFT)
         tk.Button(self.btn_frame, text="List", command=self.list_accounts_dialog).pack(side=tk.LEFT)
-        tk.Button(self.btn_frame, text="Read", command=self.read_messages).pack(side=tk.LEFT)
+        tk.Button(self.btn_frame, text="Read", command=self.read_messages_dialog).pack(side=tk.LEFT)
         tk.Button(self.btn_frame, text="Delete Msg", command=self.delete_msg_dialog).pack(side=tk.LEFT)
         tk.Button(self.btn_frame, text="Del Account", command=self.delete_account).pack(side=tk.LEFT)
 
@@ -72,12 +72,12 @@ class TkClient:
                 obj = json.loads(line)
                 status = obj.get("status")
                 message = obj.get("message", "")
+
                 if status == "success":
                     self.log(f"[SUCCESS] {message}")
 
-                    # in this case, both `users` and `pattern` are in obj
-                    # here, the obj must be the server returning a list of users
-                    if "users" in obj and "pattern" in obj:
+                    # If the server returns a list of users, update the listbox
+                    if "users" in obj and "pattern" in obj: 
                         pattern_str = obj["pattern"]
                         self.log(f"Listing Users Matching Pattern: {pattern_str}")
                         if hasattr(self, 'current_listbox'):  # Ensure reference exists
@@ -88,41 +88,16 @@ class TkClient:
                             if hasattr(self, 'current_listbox'):
                                 self.current_listbox.insert(tk.END, user_info)
 
-                    # in this case, `messages` is in obj
-                    # here, if the server returns a list of messages
-                    if "messages" in obj:
-                        self.log("Messages:")
-                        for m in obj["messages"]:
-                            sender = m["sender_username"]
-                            ts = m["timestamp"]
-                            content = m["content"]
-                            msg_id = m["id"]
-                            self.log(f"  ID={msg_id}, from={sender}, time={ts}, content={content}")
-                    
-                    # in this case, `unread_count` is in obj
-                    # here, the server returns the number of unread messages
-                    if "unread_count" in obj:
-                        self.log(f"You have {obj['unread_count']} unread messages.")
-                    
-                    # in this case, `deleted_count` is in obj
-                    # here, the server returns the number of deleted messages
-                    if "deleted_count" in obj:
-                        self.log(f"Deleted {obj['deleted_count']} messages.")
-                elif status == 'user_exists':
-                    self.log(message)
-                    existing_username = obj.get("username", "")
-                    self.prompt_login_for_existing_user(existing_username)
                 elif status == "error":
                     self.log(f"[ERROR] {message}")
                 else:
-                    # Fallback if there is no status that we recognize
                     self.log(f"[RESPONSE] {obj}")
 
             except json.JSONDecodeError:
                 self.log(f"[Invalid JSON from server] {line}")
         else:
-            # Custom wire wich we have not implemented yet
-            self.log(line)  
+            # custom wire we have not implemented yet
+            self.log(line)
 
     def log(self, msg):
         self.text_area.config(state='normal')
@@ -224,32 +199,6 @@ class TkClient:
 
         tk.Button(w, text="OK", command=on_ok).pack()
 
-    def prompt_login_for_existing_user(self, username):
-        """
-        Pops up a small dialog to let user log in with the known username.
-        """
-        w = tk.Toplevel(self.root)
-        w.title(f"Login: {username} already exists")
-
-        tk.Label(w, text=f"Username: {username}").pack()
-        tk.Label(w, text="Password").pack()
-
-        pass_entry = tk.Entry(w, show="*")
-        pass_entry.pack()
-
-        def on_ok():
-            pw = pass_entry.get()
-            w.destroy()
-            if self.use_json:
-                # send login command with known username
-                req = {"command": "login", "username": username, "password": pw}
-                self.send_json(req)
-            else:
-                # custom protocol
-                self.send_line(f"LOGIN {username} {pw}")
-
-        tk.Button(w, text="OK", command=on_ok).pack()
-
     def send_dialog(self):
         w = tk.Toplevel(self.root)
         w.title("Send Message")
@@ -313,11 +262,71 @@ class TkClient:
         tk.Button(w, text="OK", command=on_ok).pack()
 
 
-    def read_messages(self):
-        if self.use_json:
-            self.send_json({"command": "read_messages"})
-        else:
-            self.send_line("READ")
+    def read_messages_dialog(self):
+        """
+        Opens a dialog to show the total number of messages and unread messages.
+        Allows the user to choose between reading all messages or only unread messages.
+        Uses a scrollable list to display messages if there are too many.
+        """
+        # Create dialog
+        w = tk.Toplevel(self.root)
+        w.title("Read Messages")
+
+        # Labels to show message statistics
+        self.total_msg_label = tk.Label(w, text="Total Messages: Fetching...")
+        self.total_msg_label.pack()
+
+        self.unread_msg_label = tk.Label(w, text="Unread Messages: Fetching...")
+        self.unread_msg_label.pack()
+
+        # Radio buttons to choose between reading all or unread messages
+        self.read_choice = tk.StringVar(value="all")
+        tk.Radiobutton(w, text="Read All Messages", variable=self.read_choice, value="all").pack()
+        tk.Radiobutton(w, text="Read Only Unread Messages", variable=self.read_choice, value="unread").pack()
+
+        # Entry box to specify the number of messages to read
+        tk.Label(w, text="How many messages to read? (Leave empty for all)").pack()
+        self.num_msgs_entry = tk.Entry(w)
+        self.num_msgs_entry.pack()
+
+        # Scrollable message list
+        list_frame = tk.Frame(w)
+        list_frame.pack(fill=tk.BOTH, expand=True)
+
+        scrollbar = tk.Scrollbar(list_frame, orient=tk.VERTICAL)
+        self.msg_listbox = tk.Listbox(list_frame, yscrollcommand=scrollbar.set, width=80, height=10)
+        scrollbar.config(command=self.msg_listbox.yview)
+
+        self.msg_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        # Fetch message count when opening
+        self.send_json({"command": "get_message_count"})
+
+        def on_fetch():
+            """ Fetch messages based on user selection """
+            num_msgs = self.num_msgs_entry.get()
+            try:
+                num_msgs = int(num_msgs) if num_msgs else None
+            except ValueError:
+                self.log("[ERROR] Invalid number entered.")
+                return
+
+            req = {"command": "read_messages"}
+            if self.read_choice.get() == "unread":
+                req["only_unread"] = True
+            if num_msgs:
+                req["limit"] = num_msgs
+
+            self.send_json(req)
+
+        tk.Button(w, text="Fetch Messages", command=on_fetch).pack()
+
+        # Store reference for updating later
+        self.current_msg_listbox = self.msg_listbox  
+        self.current_total_msg_label = self.total_msg_label
+        self.current_unread_msg_label = self.unread_msg_label
+
 
     def delete_msg_dialog(self):
         w = tk.Toplevel(self.root)
