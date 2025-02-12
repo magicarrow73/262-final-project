@@ -36,6 +36,7 @@ class TkClient:
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.connect((self.host, self.port))
 
+        print("Connected to server")
         # Start a listener thread for push notifications and general responses
         listener = threading.Thread(target=self.listen_loop, daemon=True)
         listener.start()
