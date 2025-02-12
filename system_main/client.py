@@ -75,6 +75,15 @@ class TkClient:
                 obj = json.loads(line)
                 status = obj.get("status")
                 message = obj.get("message", "")
+
+                if status == "push":
+                    push_type = obj.get("push_type")
+                    if push_type == "incoming_message":
+                        sender = obj.get("sender")
+                        content = obj.get("content")
+                        self.log(f"[New Message] from={sender}: {content}")
+                    return
+
                 if status == "success":
                     self.log(f"[SUCCESS] {message}")
 

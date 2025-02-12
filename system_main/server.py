@@ -264,10 +264,24 @@ class Server:
             return {"status": "error", "message": "No receiver specified."}
         
         success = create_message(sender, receiver, content)
-        if success:
-            return {"status": "success", "message": "Message sent."}
-        else:
+        if not success:
             return {"status": "error", "message": "Could not send message (user not found?)."}
+        
+        with self.lock:
+            if receiver in self.socket_per_username:
+                rec_socket = self.socket_per_username[receiver]
+                push_obj = {
+                    'status': 'push',
+                    'push_type': 'incoming_message',
+                    'sender': sender,
+                    'content': content
+                }
+                try:
+                    rec_socket.send((json.dumps(push_obj) + "\n").encode('utf-8'))
+                except Exception as e:
+                    print(f"[Server] Failed to push live message to {receiver}: {e}")
+                    
+        return {"status": "success", "message": "Message sent."}
         
     # command to read messages
     def read_messages_command(self, request, client_socket):
