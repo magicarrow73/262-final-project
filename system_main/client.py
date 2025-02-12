@@ -33,11 +33,12 @@ class TkClient:
 
         tk.Button(self.btn_frame, text="Create Account", command=self.create_account_dialog).pack(side=tk.LEFT)
         tk.Button(self.btn_frame, text="Login", command=self.login_dialog).pack(side=tk.LEFT)
+        tk.Button(self.btn_frame, text="Logout", command=self.logout_dialog).pack(side=tk.LEFT)
         tk.Button(self.btn_frame, text="Send", command=self.send_dialog).pack(side=tk.LEFT)
         tk.Button(self.btn_frame, text="List", command=self.list_accounts_dialog).pack(side=tk.LEFT)
         tk.Button(self.btn_frame, text="Read", command=self.read_messages).pack(side=tk.LEFT)
         tk.Button(self.btn_frame, text="Delete Msg", command=self.delete_msg_dialog).pack(side=tk.LEFT)
-        tk.Button(self.btn_frame, text="Del Account", command=self.delete_account).pack(side=tk.LEFT)
+        tk.Button(self.btn_frame, text="Delete Account", command=self.delete_account).pack(side=tk.LEFT)
 
     def connect(self):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -236,6 +237,25 @@ class TkClient:
                 self.send_json(req)
             else:
                 self.send_line(f"LOGIN {user} {hashed_password}")
+
+        tk.Button(w, text="OK", command=on_ok).pack()
+
+    def logout_dialog(self):
+        """
+        Ask if the user wants to log out
+        """
+        w = tk.Toplevel(self.root)
+        w.title("Logout")
+
+        tk.Label(w, text="Are you sure you want to logout?").pack()
+
+        def on_ok():
+            w.destroy()
+            if self.use_json:
+                req = {"command": "logout"}
+                self.send_json(req)
+            else:
+                pass
 
         tk.Button(w, text="OK", command=on_ok).pack()
 
