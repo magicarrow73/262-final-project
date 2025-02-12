@@ -2,8 +2,11 @@ import tkinter as tk
 import socket
 import threading
 import json
-
+import os # for logging
 from .utils import hash_password
+
+
+LOG_FILE = "client_log.txt"
 
 class TkClient:
     def __init__(self, host="127.0.0.1", port=12345, use_json=True):
@@ -59,9 +62,10 @@ class TkClient:
         buffer = b""
         while True:
             try:
-                chunk = self.sock.recv(1024)
+                chunk = self.sock.recv(4096)
                 if not chunk:
-                    break
+                    break       
+                self.log_data_size(len(chunk.decode('utf-8')), mode="recv")  # Log size
                 buffer += chunk
                 while b"\n" in buffer:
                     line, buffer = buffer.split(b"\n", 1)
@@ -153,6 +157,31 @@ class TkClient:
             else:
                 self.log("[RESPONSE] " + line)
 
+    ### Logging ###
+    
+    def log_data_size(self, data_size, mode="send"):
+        """
+        Logs the total amount of data sent or received 
+        """
+
+        if not os.path.exists(LOG_FILE):
+            with open(LOG_FILE, "w") as f:
+                f.write("Total Bytes Sent: 0\nTotal Bytes Received: 0\n")
+
+        with open(LOG_FILE, "r") as f:
+            lines = f.readlines()
+
+        sent_size = int(lines[0].split(": ")[1])
+        recv_size = int(lines[1].split(": ")[1])
+
+        if mode == "send":
+            sent_size += data_size
+        elif mode == "recv":
+            recv_size += data_size
+
+        with open(LOG_FILE, "w") as f:
+            f.write(f"Total Bytes Sent: {sent_size}\nTotal Bytes Received: {recv_size}\n")
+
     def log(self, msg):
         """
         Log a message to the text area.
@@ -179,6 +208,8 @@ class TkClient:
         """
         try:
             self.sock.sendall((line + "\n").encode('utf-8'))
+
+            self.log_data_size(len((line+ "\n").encode('utf-8')), mode="send")  
         except:
             self.log("[Error] Failed to send wire")
 
@@ -190,6 +221,7 @@ class TkClient:
         try:
             line = json.dumps(obj) + "\n"
             self.sock.sendall(line.encode('utf-8'))
+            self.log_data_size(len(line.encode('utf-8')), mode="send")  # Log size
         except Exception as e:
             self.log(f"[Error] Failed to send JSON: {e}")
 
@@ -364,7 +396,6 @@ class TkClient:
 
         def on_ok():
             pattern_to_use = pattern.get().strip()
-            print(pattern_to_use)
             if not pattern_to_use:
                 pattern_to_use = "*"
             if self.use_json:
