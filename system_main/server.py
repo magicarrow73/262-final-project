@@ -12,7 +12,8 @@ from .utils import hash_password, verify_password
 class Server:
     def __init__(self, host="127.0.0.1", port = 12345, protocol_type = "json"):
         """
-        Initialize server with host and port
+        Initialize server with host and port.
+        protocol_type: is either "json" or "custom". If "json", use JSON protocol, if "custom", use custom wire protocol.
         """
         self.host = host
         self.port = port

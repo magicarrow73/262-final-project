@@ -5,6 +5,10 @@ import json
 
 class TkClient:
     def __init__(self, host="127.0.0.1", port=12345, use_json=True):
+        '''
+        Initialize the client with the host, port, and whether to use JSON.
+        use_json: if True, the client will use JSON for communication. Otherwise, it will use a custom wire protocol.
+        '''
         self.host = host
         self.port = port
         self.use_json = use_json
