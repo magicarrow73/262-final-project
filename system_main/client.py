@@ -3,9 +3,8 @@ import socket
 import threading
 import json
 
-from .utils import (
-    hash_password
-)
+from .utils import hash_password
+
 class TkClient:
     def __init__(self, host="127.0.0.1", port=12345, use_json=True):
         '''
@@ -75,8 +74,6 @@ class TkClient:
             try:
                 obj = json.loads(line)
                 status = obj.get("status")
-                message = obj.get("message", "")
-
                 if status == "push":
                     push_type = obj.get("push_type")
                     if push_type == "incoming_message":
@@ -84,6 +81,8 @@ class TkClient:
                         content = obj.get("content")
                         self.log(f"[New Message] from={sender}: {content}")
                     return
+                
+                message = obj.get("message", "")
 
                 if status == "success":
                     self.log(f"[SUCCESS] {message}")
@@ -93,8 +92,8 @@ class TkClient:
                     if "users" in obj and "pattern" in obj:
                         pattern_str = obj["pattern"]
                         self.log(f"Listing Users Matching Pattern: {pattern_str}")
-                        if hasattr(self, 'current_listbox'):  # Ensure reference exists
-                            self.current_listbox.delete(0, tk.END)  # Clear previous entries
+                        if hasattr(self, 'current_listbox'):
+                            self.current_listbox.delete(0, tk.END)
                         for u in obj["users"]:
                             user_info = f"{u['username']} ({u['display_name']})"
                             self.log(f"  {user_info}")
@@ -128,14 +127,27 @@ class TkClient:
                 elif status == "error":
                     self.log(f"[ERROR] {message}")
                 else:
-                    # Fallback if there is no status that we recognize
+                    # fallback in the case that we cannot recognize status
                     self.log(f"[RESPONSE] {obj}")
 
             except json.JSONDecodeError:
                 self.log(f"[Invalid JSON from server] {line}")
         else:
-            # Custom wire wich we have not implemented yet
-            self.log(line)  
+            line = line.strip()
+            if line.startswith("OK"):
+                self.log("[SUCCESS] " + line[2:].strip())
+            elif line.startswith("ERR"):
+                self.log("[ERROR] " + line[3:].strip())
+            elif line.startswith("MSG"):
+                self.log("[MESSAGE] " + line[3:].strip())
+            elif line.startswith("P "):
+                tokens = line.split(" ", 2)
+                if len(tokens) >= 3:
+                    sender = tokens[1]
+                    content = tokens[2]
+                    self.log(f"[New Message] from={sender}: {content}")
+            else:
+                self.log("[RESPONSE] " + line)
 
     def log(self, msg):
         self.text_area.config(state='normal')
@@ -145,38 +157,26 @@ class TkClient:
 
     def handle_enter(self, event):
         """
-        If you want direct sending of typed lines (custom wire).
+        Directly send typed lines for custom wire
         """
         if not self.use_json:
             line = self.entry.get()
             self.entry.delete(0, tk.END)
             self.send_line(line)
 
-    # ----------------------
-    # Utility send methods
-    # ----------------------
     def send_line(self, line: str):
-        """
-        For custom wire mode
-        """
         try:
             self.sock.sendall((line + "\n").encode('utf-8'))
         except:
             self.log("[Error] Failed to send wire")
 
     def send_json(self, obj):
-        """
-        For JSON mode
-        """
         try:
             line = json.dumps(obj) + "\n"
             self.sock.sendall(line.encode('utf-8'))
         except Exception as e:
             self.log(f"[Error] Failed to send JSON: {e}")
 
-    # ----------------------
-    # Commands
-    # ----------------------
     def create_account_dialog(self):
         w = tk.Toplevel(self.root)
         w.title("Create Account")
@@ -194,7 +194,7 @@ class TkClient:
         disp_entry.pack()
 
         def on_ok():
-            username = user_entry.get()
+            username = user_entry.get().strip()
             password = pass_entry.get()
             display = disp_entry.get()
 
@@ -210,7 +210,7 @@ class TkClient:
                 self.send_json(req)
             else:
                 #custom protocol
-                line = f"CREATE {username} {hashed_password} {display}"
+                line = f"CRE {username} {hashed_password} {display}"
                 self.send_line(line)
 
         tk.Button(w, text="OK", command=on_ok).pack()
@@ -236,8 +236,8 @@ class TkClient:
                 req = {"command": "login", "username": user, "hashed_password": hashed_password}
                 self.send_json(req)
             else:
-                self.send_line(f"LOGIN {user} {hashed_password}")
-
+                line = f"LOG {user} {hashed_password}"
+                self.send_line(line)
         tk.Button(w, text="OK", command=on_ok).pack()
 
     def logout_dialog(self):
@@ -255,7 +255,7 @@ class TkClient:
                 req = {"command": "logout"}
                 self.send_json(req)
             else:
-                pass
+                self.send_line("LGO")
 
         tk.Button(w, text="OK", command=on_ok).pack()
 
@@ -282,7 +282,7 @@ class TkClient:
                 self.send_json(req)
             else:
                 # custom protocol
-                self.send_line(f"LOGIN {username} {pw}")
+                self.send_line(f"LOG {username} {hashed_password}")
 
         tk.Button(w, text="OK", command=on_ok).pack()
 
@@ -306,7 +306,8 @@ class TkClient:
                 req = {"command": "send_message", "receiver": to_user, "content": msg}
                 self.send_json(req)
             else:
-                self.send_line(f"SEND {to_user} {msg}")
+                line = f"SND {to_user} {msg}"
+                self.send_line(line)
 
         tk.Button(w, text="OK", command=on_ok).pack()
 
@@ -333,18 +334,18 @@ class TkClient:
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
         def on_ok():
-            pattern_to_use = pattern.get()
+            pattern_to_use = pattern.get().strip()
             print(pattern_to_use)
             if not pattern_to_use:
                 pattern_to_use = "*"
             if self.use_json:
                 req = {"command": "list_users", "pattern": pattern_to_use}
                 self.send_json(req)
-
-                # Store reference to update later
                 self.current_listbox = account_listbox  
             else:
-                pass  # Implement if using a custom protocol
+                line = f"LIS {pattern_to_use}"
+                self.send_line(line)
+                self.current_listbox = account_listbox
 
         tk.Button(w, text="OK", command=on_ok).pack()
 
@@ -368,29 +369,37 @@ class TkClient:
         limit_entry.pack()
 
         def on_ok():
-            only_unread = unread_var.get()  # either True or False
+            only_unread = unread_var.get()
             limit_str = limit_entry.get().strip()
             w.destroy()
 
-            req = {"command": "read_messages"}
-
-            # user wants only unread messages
-            if only_unread:
-                req["only_unread"] = True
-
-            # user wants a specific limit on messages
-            if limit_str:
-                try:
-                    limit_val = int(limit_str)
-                    req["limit"] = limit_val
-                except ValueError:
-                    self.log("[Error] Please enter a valid positive integer for the message limit.")
-                    return
-
             if self.use_json:
+                req = {"command": "read_messages"}
+                if only_unread:
+                    req["only_unread"] = True
+                if limit_str:
+                    try:
+                        limit_val = int(limit_str)
+                        req["limit"] = limit_val
+                    except ValueError:
+                        self.log("[Error] Invalid integer for limit.")
+                        return
                 self.send_json(req)
             else:
-                pass
+                parts = ["RD"]
+                if only_unread:
+                    parts.append("UNREAD")
+                if limit_str:
+                    try:
+                        limit_val = int(limit_str)
+                        parts.append("LIMIT")
+                        parts.append(str(limit_val))
+                    except ValueError:
+                        self.log("[Error] Invalid integer for limit.")
+                        return
+                line = " ".join(parts)
+                self.send_line(line)
+
 
         tk.Button(w, text="OK", command=on_ok).pack()
 
@@ -407,47 +416,44 @@ class TkClient:
             w.destroy()
             if not raw_input:
                 return
-            
-            if "," in raw_input:
-                parts = [p.strip() for p in raw_input.split(",") if p.strip()]
-                try:
-                    ids_list = [int(x) for x in parts]
-                except ValueError:
-                    self.log("[Error] Invalid input: all message IDs must be numeric.")
-                    return
 
-                req = {"command": "delete_messages", "message_ids": ids_list}
-            else:
-                try:
-                    single_id = int(raw_input)
-                except ValueError:
-                    self.log("[Error] Invalid input: message ID must be numeric.")
-                    return
-
-                req = {"command": "delete_messages", "message_id": single_id}
-        
             if self.use_json:
+                if "," in raw_input:
+                    parts = [p.strip() for p in raw_input.split(",") if p.strip()]
+                    try:
+                        ids_list = [int(x) for x in parts]
+                    except ValueError:
+                        self.log("[Error] IDs must be numeric.")
+                        return
+                    req = {"command": "delete_messages", "message_ids": ids_list}
+                else:
+                    try:
+                        single_id = int(raw_input)
+                    except ValueError:
+                        self.log("[Error] ID must be numeric.")
+                        return
+                    req = {"command": "delete_messages", "message_id": single_id}
                 self.send_json(req)
             else:
-                pass
+                line = f"DELMSG {raw_input}"
+                self.send_line(line)
 
         tk.Button(w, text="OK", command=on_ok).pack()
 
     def delete_account(self):
-        if self.use_json:
-            
-            w = tk.Toplevel(self.root)
-            w.title("Are you sure you want to delete your account? Press OK to confirm.")
 
+        w = tk.Toplevel(self.root)
+        w.title("Are you sure you want to delete your account? Press OK to confirm.")
 
-            def on_ok():
-                w.destroy()
+        def on_ok():
+            w.destroy()
+            if self.use_json:
                 req = {"command": "delete_user"}
                 self.send_json(req)
+            else:
+                self.send_line("DELUSER")
 
-            tk.Button(w, text="OK", command=on_ok).pack()
-        else:
-            self.send_line("DELETE_ACCOUNT")
+        tk.Button(w, text="OK", command=on_ok).pack()
 
     def run(self):
         self.connect()

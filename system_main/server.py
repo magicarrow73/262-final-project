@@ -48,7 +48,7 @@ class Server:
             while True:
                 client_socket, addr = self.server.accept()
                 print(f"[Server] Connection from {addr} has been established.")
-                client_handler = threading.Thread(target=self.handle_client, args=(client_socket,))
+                client_handler = threading.Thread(target=self.handle_client, args=(client_socket,), daemon=True)
                 client_handler.start()
             
         except KeyboardInterrupt:
@@ -69,7 +69,7 @@ class Server:
         elif self.protocol_type == "custom":
             self.handle_custom_client(client_socket)
         else:
-            print("[Server] Invalid protocol type, please specify a new one.")
+            print("[Server] Invalid protocol type, please specify a correct one.")
         
         # Cleanup when client disconnects
         with self.lock:
@@ -86,6 +86,8 @@ class Server:
         
         # close the client socket
         client_socket.close()
+
+    # ===== JSON protocol handler =====
          
     def handle_json_client(self, client_socket):
         """
@@ -139,14 +141,201 @@ class Server:
         # handle any errors, for now just print the error
         # the client socket will be closed in the main `handle_client` method
         except Exception as e:
-            print(f"[Server] Error handling client: {e}")
+            print(f"[Server] JSON error handling client: {e}")
+
+    # ===== custom wire protocol handler =====
     
     def handle_custom_client(self, client_socket):
         """
-        Handle custom wire protocol client requests
+        Handle custom line-based protocol:
+          CRE <username> <pw-hash> <display name...>
+          LOG <username> <pw-hash>
+          LGO
+          SND <receiver> <content...>
+          LIS [pattern]
+          RD [UNREAD] [LIMIT n]
+          DELMSG <id or comma list>
+          DELUSER
+          ...
         """
-        # TODO
-        pass   
+        buffer = b""
+        try:
+            while True:
+                chunk = client_socket.recv(1024)
+                if not chunk:
+                    break
+                buffer += chunk
+
+                while b"\n" in buffer:
+                    line, buffer = buffer.split(b"\n", 1)
+                    line_str = line.decode("utf-8", "replace").strip()
+                    if not line_str:
+                        continue
+                    
+                    response = self.parse_custom_command(line_str, client_socket)
+                    if response:
+                        client_socket.sendall((response + "\n").encode("utf-8"))
+
+        except Exception as e:
+            print(f"[Server] custom wire error: {e}")
+        finally:
+            with self.lock:
+                if client_socket in self.active_users:
+                    username = self.active_users[client_socket]
+                    del self.active_users[client_socket]
+                    if username in self.socket_per_username:
+                        del self.socket_per_username[username]
+            client_socket.close()
+    
+    def parse_custom_command(self, line_str, client_socket):
+        """
+        Parse the short commands and call the same logic as the JSON approach
+        Returns a short line response, e.g. "OK something" or "ERR something"
+        """
+        tokens = line_str.split(" ")
+        cmd = tokens[0].upper()
+
+        if cmd == "CRE":  # create user
+            if len(tokens) < 4:
+                return "ERR Not enough args to CRE"
+            username = tokens[1]
+            pw_hash = tokens[2]
+            display_name = " ".join(tokens[3:])
+            fake_req = {
+                "username": username,
+                "hashed_password": pw_hash,
+                "display_name": display_name
+            }
+            resp = self.create_user_command(fake_req, client_socket)
+            if resp["status"] == "success":
+                return f"OK {resp['message']}"
+            elif resp["status"] == "user_exists":
+                return f"ERR {resp['message']}"
+            else:
+                return f"ERR {resp.get('message','Unknown error')}"
+
+        elif cmd == "LOG":  # login
+            if len(tokens) < 3:
+                return "ERR Not enough args to LOG"
+            username = tokens[1]
+            pw_hash = tokens[2]
+            fake_req = {
+                "username": username,
+                "hashed_password": pw_hash
+            }
+            resp = self.login_command(fake_req, client_socket)
+            if resp["status"] == "success":
+                unread = resp.get("unread_count", 0)
+                return f"OK Logged in. Unread={unread}"
+            else:
+                return f"ERR {resp.get('message','Login error')}"
+
+        elif cmd == "LGO":  # logout
+            resp = self.logout_command({}, client_socket)
+            if resp["status"] == "success":
+                return f"OK {resp['message']}"
+            else:
+                return f"ERR {resp['message']}"
+
+        elif cmd == "SND":  # send message
+            if len(tokens) < 3:
+                return "ERR Not enough args to SND"
+            receiver = tokens[1]
+            content = " ".join(tokens[2:])
+            fake_req = {
+                "receiver": receiver,
+                "content": content
+            }
+            resp = self.send_message_command(fake_req, client_socket)
+            if resp["status"] == "success":
+                return "OK Message sent."
+            else:
+                return f"ERR {resp['message']}"
+
+        elif cmd == "LIS":  # list users
+            pattern = "*"
+            if len(tokens) > 1:
+                pattern = tokens[1]
+            fake_req = {"pattern": pattern}
+            resp = self.list_users_command(fake_req)
+            if resp["status"] == "success":
+                users = resp["users"]
+                lines = [f"OK Found {len(users)} user(s)."]
+                for u in users:
+                    lines.append(f"USR {u['username']} {u['display_name']}")
+                return "\n".join(lines)
+            else:
+                return f"ERR {resp.get('message','No user?')}"
+
+        elif cmd == "RD":  # read messages
+            only_unread = False
+            limit = None
+            idx = 1
+            while idx < len(tokens):
+                t = tokens[idx].upper()
+                if t == "UNREAD":
+                    only_unread = True
+                elif t == "LIMIT" and (idx + 1) < len(tokens):
+                    idx += 1
+                    try:
+                        limit = int(tokens[idx])
+                    except ValueError:
+                        pass
+                idx += 1
+
+            fake_req = {"only_unread": only_unread}
+            if limit:
+                fake_req["limit"] = limit
+
+            resp = self.read_messages_command(fake_req, client_socket)
+            if resp["status"] == "success":
+                msgs = resp["messages"]
+                if not msgs:
+                    return "OK No messages."
+                lines = []
+                for m in msgs:
+                    lines.append(f"MSG {m['id']} from={m['sender_username']} content={m['content']}")
+                return "\n".join(lines)
+            else:
+                return f"ERR {resp['message']}"
+
+        elif cmd == "DELMSG":
+            if len(tokens) < 2:
+                return "ERR Not enough args to DELMSG"
+            raw = tokens[1]
+            if "," in raw:
+                parts = [p.strip() for p in raw.split(",") if p.strip()]
+                try:
+                    ids = [int(x) for x in parts]
+                    fake_req = {"message_ids": ids}
+                except ValueError:
+                    return "ERR Invalid ID(s)"
+            else:
+                try:
+                    single_id = int(raw)
+                    fake_req = {"message_id": single_id}
+                except ValueError:
+                    return "ERR Invalid ID"
+
+            resp = self.delete_messages_command(fake_req, client_socket)
+            if resp["status"] == "success":
+                deleted = resp.get("deleted_count", 0)
+                return f"OK Deleted {deleted} messages."
+            else:
+                return f"ERR {resp['message']}"
+
+        elif cmd == "DELUSER":
+            resp = self.delete_user_command(client_socket)
+            if isinstance(resp, dict):
+                if resp["status"] == "success":
+                    return f"OK {resp['message']}"
+                else:
+                    return f"ERR {resp.get('message','Error')}"
+            else:
+                return f"ERR {resp}"
+
+        else:
+            return "ERR Unknown command"
             
 
     # ===== JSON Command Handlers =====
@@ -270,17 +459,24 @@ class Server:
         with self.lock:
             if receiver in self.socket_per_username:
                 rec_socket = self.socket_per_username[receiver]
-                push_obj = {
-                    'status': 'push',
-                    'push_type': 'incoming_message',
-                    'sender': sender,
-                    'content': content
-                }
-                try:
-                    rec_socket.send((json.dumps(push_obj) + "\n").encode('utf-8'))
-                except Exception as e:
-                    print(f"[Server] Failed to push live message to {receiver}: {e}")
-                    
+                if self.protocol_type == "json":
+                    push_obj = {
+                        'status': 'push',
+                        'push_type': 'incoming_message',
+                        'sender': sender,
+                        'content': content
+                    }
+                    try:
+                        rec_socket.send((json.dumps(push_obj) + "\n").encode('utf-8'))
+                    except Exception as e:
+                        print(f"[Server] Failed to push live message to {receiver}: {e}")
+                else:
+                    push_line = f"P {sender} {content}"
+                    try:
+                        rec_socket.send((push_line + "\n").encode('utf-8'))
+                    except Exception as e:
+                        print(f"[Server] Failed to push custom message to {receiver}: {e}")
+
         return {"status": "success", "message": "Message sent."}
         
     # command to read messages
@@ -388,7 +584,7 @@ def main():
     parser = argparse.ArgumentParser(description="Start the server.")
     parser.add_argument("--host", type=str, default="127.0.0.1", help="Host to bind to")
     parser.add_argument("--port", type=int, default=12345, help="Port to bind to")
-    parser.add_argument("--protocol", type=str, default="json", help="Protocol: either json or custom wire protocol")
+    parser.add_argument("--protocol", type=str, default="json", help="Protocol: either 'json' or 'custom' wire protocol")
     args = parser.parse_args()
     
     # start the server
