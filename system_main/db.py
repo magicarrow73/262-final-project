@@ -169,6 +169,8 @@ def get_messages_for_user(username: str, only_unread: bool = False):
     base_query = """
     SELECT 
         messages.id,
+        messages.sender_id,
+        messages.receiver_id,
         messages.content,
         messages.timestamp,
         messages.read_status,
@@ -180,6 +182,7 @@ def get_messages_for_user(username: str, only_unread: bool = False):
     
     if only_unread:
         base_query += " AND messages.read_status = 0"
+
     base_query += " ORDER BY messages.timestamp DESC"
     
     cur = c.cursor()

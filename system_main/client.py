@@ -137,8 +137,8 @@ class TkClient:
         try:
             line = json.dumps(obj) + "\n"
             self.sock.sendall(line.encode('utf-8'))
-        except:
-            self.log("[Error] Failed to send JSON")
+        except Exception as e:
+            self.log(f"[Error] Failed to send JSON: {e}")
 
     # ----------------------
     # Commands
@@ -251,7 +251,7 @@ class TkClient:
             mid = msg_id_entry.get()
             w.destroy()
             if self.use_json:
-                req = {"command": "delete_messages", "id": int(mid)}
+                req = {"command": "delete_messages", "message_id": int(mid)}
                 self.send_json(req)
             else:
                 self.send_line(f"DELETE_MSG {mid}")

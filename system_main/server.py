@@ -272,6 +272,7 @@ class Server:
                 "content": m["content"],
                 "timestamp": m["timestamp"],
                 "read_status": m["read_status"],
+                "sender_username": m["sender_username"]
             })
         
         return {"status": "success", "messages": output}
