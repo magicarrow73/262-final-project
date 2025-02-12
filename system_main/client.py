@@ -4,7 +4,7 @@ import threading
 import json
 
 from .utils import (
-    hash_password, verify_password
+    hash_password
 )
 class TkClient:
     def __init__(self, host="127.0.0.1", port=12345, use_json=True):
