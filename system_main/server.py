@@ -61,8 +61,7 @@ class Server:
         if self.protocol_type == "json":
             self.handle_json_client(client_socket)
         elif self.protocol_type == "custom":
-            # TODO
-            pass
+            self.handle_custom_client(client_socket)
         else:
             print("[Server] Invalid protocol type, please specify a new one.")
         
@@ -130,7 +129,15 @@ class Server:
         # the client socket will be closed in the main `handle_client` method
         except Exception as e:
             print(f"[Server] Error handling client: {e}")
-               
+    
+    def handle_custom_client(self, client_socket):
+        """
+        Handle custom wire protocol client requests
+        """
+        # TODO
+        pass   
+            
+
     # ===== JSON Command Handlers =====
     """
     Command handlers for the server take as an argument the JSON request, handle the request, and return a JSON response

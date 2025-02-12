@@ -53,7 +53,7 @@ def close_db():
         conn.close()
         conn = None
 
-# ===== User Management =====
+### METHODS FOR USER OPERATIONS ###
 
 def create_user(username: str, password_hash: str, display_name: str) -> bool:
     """
@@ -123,7 +123,7 @@ def list_users(pattern="*"):
     rows = cur.fetchall()
     return [(row["username"], row["display_name"]) for row in rows]
 
-# ===== Messaging =====
+### METHODS FOR MESSAGE OPERATIONS ###
 
 def create_message(sender_username: str, receiver_username: str, content: str) -> bool:
     """
