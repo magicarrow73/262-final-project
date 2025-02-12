@@ -166,15 +166,24 @@ def get_messages_for_user(username: str, only_unread: bool = False):
         return []
     
     receiver_id = user_row["id"]
-    base_query = "SELECT * FROM messages WHERE receiver_id = ?"
-    params = [receiver_id]
+    base_query = """
+    SELECT 
+        messages.id,
+        messages.content,
+        messages.timestamp,
+        messages.read_status,
+        sender.username AS sender_username
+    FROM messages
+    JOIN users AS sender ON sender.id = messages.sender_id
+    WHERE messages.receiver_id = ?
+    """
     
     if only_unread:
-        base_query += " AND read_status = 0"
-    base_query += " ORDER BY timestamp DESC"
+        base_query += " AND messages.read_status = 0"
+    base_query += " ORDER BY messages.timestamp DESC"
     
     cur = c.cursor()
-    cur.execute(base_query, params)
+    cur.execute(base_query, (receiver_id,))
     return cur.fetchall()
 
 def get_num_unread_messages(username: str) -> int:

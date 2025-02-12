@@ -67,16 +67,36 @@ class TkClient:
                 message = obj.get("message", "")
                 if status == "success":
                     self.log(f"[SUCCESS] {message}")
-                    # If there are messages in the response, display them
+
+                    #if the server returns a list of users
+                    if "users" in obj:
+                        self.log("Listing Users:")
+                        for u in obj["users"]:
+                            # Each user is {"username": "...", "display_name": "..."}
+                            self.log(f"  {u['username']} ({u['display_name']})")
+
+                    #if the server returns a list of messages
                     if "messages" in obj:
                         self.log("Messages:")
                         for m in obj["messages"]:
-                            self.log(f"  ID={m['id']}, from={m['sender_id']}, content={m['content']}")
+                            sender = m["sender_username"]
+                            ts = m["timestamp"]
+                            content = m["content"]
+                            msg_id = m["id"]
+                            self.log(f"  ID={msg_id}, from={sender}, time={ts}, content={content}")
+                    
+                    if "unread_count" in obj:
+                        self.log(f"You have {obj['unread_count']} unread messages.")
+
+                    if "deleted_count" in obj:
+                        self.log(f"Deleted {obj['deleted_count']} messages.")
+
                 elif status == "error":
                     self.log(f"[ERROR] {message}")
                 else:
-                    # Fallback if there's no status or it's something else
+                    # Fallback if there is no status that we recognize
                     self.log(f"[RESPONSE] {obj}")
+
             except json.JSONDecodeError:
                 self.log(f"[Invalid JSON from server] {line}")
         else:
@@ -200,7 +220,7 @@ class TkClient:
             msg = msg_entry.get()
             w.destroy()
             if self.use_json:
-                req = {"command": "send_message", "to": to_user, "content": msg}
+                req = {"command": "send_message", "receiver": to_user, "content": msg}
                 self.send_json(req)
             else:
                 self.send_line(f"SEND {to_user} {msg}")

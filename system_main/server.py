@@ -124,7 +124,8 @@ class Server:
                 else:
                     response = {"status": "error", "message": "Unknown command."}
                 # send response back to client
-                client_socket.send(json.dumps(response).encode('utf-8'))
+                client_socket.send((json.dumps(response) + "\n").encode('utf-8'))
+
     
         # handle any errors, for now just print the error
         # the client socket will be closed in the main `handle_client` method
@@ -283,7 +284,7 @@ class Server:
         """
         username = self.active_users.get(client_socket)
         if not username:
-            return {"status": "error", "message": "You are not logged in."}
+            return {"status": "error", "message": "You are not logged in, please try again"}
         
         #allow for either single message_id or list of message_ids
         message_id = request.get("message_id")
@@ -291,6 +292,11 @@ class Server:
         deleted_count = 0
         
         if message_id:
+            try:
+                message_id = int(message_id)
+            except ValueError:
+                return {"status": "error", "message": "Message ID must be a number, please try again"}
+
             if delete_message(message_id, username):
                 deleted_count += 1
         
