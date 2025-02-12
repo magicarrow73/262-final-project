@@ -2,19 +2,8 @@ import tkinter as tk
 import socket
 import threading
 import json
-import os
+
 from .utils import hash_password
-
-LOG_FILE = "client_log.txt"
-
-CMD_CREATE   = 0x01
-CMD_LOGIN    = 0x02
-CMD_LOGOUT   = 0x03
-CMD_SEND     = 0x04
-CMD_LIST     = 0x05
-CMD_READ     = 0x06
-CMD_DELMSG   = 0x07
-CMD_DELUSER  = 0x08
 
 class TkClient:
     def __init__(self, host="127.0.0.1", port=12345, use_json=True):
@@ -30,7 +19,7 @@ class TkClient:
 
         # GUI setup
         self.root = tk.Tk()
-        self.root.title("Chat Client, supporting logging and single-byte commands")
+        self.root.title("Chat Client")
 
         self.text_area = tk.Text(self.root, state='disabled', width=80, height=20)
         self.text_area.pack()
@@ -70,18 +59,13 @@ class TkClient:
         buffer = b""
         while True:
             try:
-                chunk = self.sock.recv(4096)
+                chunk = self.sock.recv(1024)
                 if not chunk:
-                    break       
-                # log how many bytes received
-                # why do we need the utf-8 part?
-                #self.log_data_size(len(chunk.decode('utf-8')), mode="recv")
-                self.log_data_size(len(chunk), mode="recv")
-
+                    break
                 buffer += chunk
                 while b"\n" in buffer:
                     line, buffer = buffer.split(b"\n", 1)
-                    self.handle_server_line(line.decode('utf-8', 'replace'))
+                    self.handle_server_line(line.decode('utf-8'))
             except:
                 self.log("Connection lost or error.")
                 break
@@ -90,7 +74,6 @@ class TkClient:
         """
         Handles incoming messages from the server, including updates to the list of users.
         """
-        line = line.strip()
         if self.use_json:
             try:
                 obj = json.loads(line)
@@ -154,6 +137,7 @@ class TkClient:
             except json.JSONDecodeError:
                 self.log(f"[Invalid JSON from server] {line}")
         else:
+            line = line.strip()
             if line.startswith("OK"):
                 self.log("[SUCCESS] " + line[2:].strip())
             elif line.startswith("ERR"):
@@ -168,31 +152,6 @@ class TkClient:
                     self.log(f"[New Message] from={sender}: {content}")
             else:
                 self.log("[RESPONSE] " + line)
-
-    ### Logging ###
-    
-    def log_data_size(self, data_size, mode="send"):
-        """
-        Logs the total amount of data sent or received to client_log.txt
-        """
-
-        if not os.path.exists(LOG_FILE):
-            with open(LOG_FILE, "w") as f:
-                f.write("Total Bytes Sent: 0\nTotal Bytes Received: 0\n")
-
-        with open(LOG_FILE, "r") as f:
-            lines = f.readlines()
-
-        sent_size = int(lines[0].split(": ")[1])
-        recv_size = int(lines[1].split(": ")[1])
-
-        if mode == "send":
-            sent_size += data_size
-        elif mode == "recv":
-            recv_size += data_size
-
-        with open(LOG_FILE, "w") as f:
-            f.write(f"Total Bytes Sent: {sent_size}\nTotal Bytes Received: {recv_size}\n")
 
     def log(self, msg):
         """
@@ -213,32 +172,26 @@ class TkClient:
             self.send_line(line)
 
     ### Sending Data ###
+    
+    def send_line(self, line: str):
+        """
+        Send a line of text to the server.
+        """
+        try:
+            self.sock.sendall((line + "\n").encode('utf-8'))
+        except:
+            self.log("[Error] Failed to send wire")
 
     def send_json(self, obj):
         """
         Send a JSON object to the server.
         """
-        text = json.dumps(obj) + "\n"
-        data = text.encode('utf-8')
 
         try:
-            self.sock.sendall(data)
-            self.log_data_size(len(data), mode="send")
+            line = json.dumps(obj) + "\n"
+            self.sock.sendall(line.encode('utf-8'))
         except Exception as e:
-            self.log(f"[Error] Failed to send JSON: " + str(e))
-
-    def send_cmd(self, cmd_byte: int, payload: bytes):
-        """
-        Build [cmd(1)][length(2)][payload], log its size, send
-        """
-        length = len(payload)
-        length_bytes = length.to_bytes(2,'big')
-        packet = bytes([cmd_byte]) + length_bytes + payload
-        try:
-            self.sock.sendall(packet)
-            self.log_data_size(len(packet), mode="send")  # log total number of bytes
-        except:
-            self.log("[Error] Failed to send custom wire")
+            self.log(f"[Error] Failed to send JSON: {e}")
 
     ### Dialogs ###
 
@@ -266,25 +219,21 @@ class TkClient:
             username = user_entry.get().strip()
             password = pass_entry.get()
             display = disp_entry.get()
-            hashed = hash_password(password)
 
+            hashed_password = hash_password(password)
             w.destroy()
             if self.use_json:
                 req = {
                     "command": "create_user",
                     "username": username,
-                    "hashed_password": hashed,
+                    "hashed_password": hashed_password,
                     "display_name": display
                 }
                 self.send_json(req)
             else:
-                #CMD=0x01, payload = b"user\0hash\0display\0"
-                payload = (
-                    username.encode('utf-8') + b"\0" +
-                    hashed.encode('utf-8')   + b"\0" +
-                    display.encode('utf-8') + b"\0"
-                )
-                self.send_cmd(CMD_CREATE, payload)
+                #custom protocol
+                line = f"CRE {username} {hashed_password} {display}"
+                self.send_line(line)
 
         tk.Button(w, text="OK", command=on_ok).pack()
 
@@ -304,20 +253,16 @@ class TkClient:
         pass_entry.pack()
 
         def on_ok():
-            user = user_entry.get().strip()
+            user = user_entry.get()
             pw = pass_entry.get()
-            hashed = hash_password(pw)
+            hashed_password = hash_password(pw)
             w.destroy()
             if self.use_json:
-                req = {"command": "login", "username": user, "hashed_password": hashed}
+                req = {"command": "login", "username": user, "hashed_password": hashed_password}
                 self.send_json(req)
             else:
-                #CMD=0x02, payload = b"user\0hash\0"
-                payload = (
-                    user.encode('utf-8') + b"\0" +
-                    hashed.encode('utf-8')   + b"\0"
-                )
-                self.send_cmd(CMD_LOGIN, payload)
+                line = f"LOG {user} {hashed_password}"
+                self.send_line(line)
         tk.Button(w, text="OK", command=on_ok).pack()
 
     def logout_dialog(self):
@@ -335,8 +280,7 @@ class TkClient:
                 req = {"command": "logout"}
                 self.send_json(req)
             else:
-                #CMD=0x03, no payload
-                self.send_cmd(CMD_LOGOUT, b"")
+                self.send_line("LGO")
 
         tk.Button(w, text="OK", command=on_ok).pack()
 
@@ -355,19 +299,15 @@ class TkClient:
 
         def on_ok():
             pw = pass_entry.get()
-            hashed = hash_password(pw)
+            hashed_password = hash_password(pw)
             w.destroy()
             if self.use_json:
                 # send login command with known username
-                req = {"command": "login", "username": username, "hashed_password": hashed}
+                req = {"command": "login", "username": username, "hashed_password": hashed_password}
                 self.send_json(req)
             else:
-                #CMD=0x02
-                payload = (
-                    username.encode('utf-8') + b"\0" +
-                    hashed.encode('utf-8')   + b"\0"
-                )
-                self.send_cmd(CMD_LOGIN, payload)
+                # custom protocol
+                self.send_line(f"LOG {username} {hashed_password}")
 
         tk.Button(w, text="OK", command=on_ok).pack()
 
@@ -388,19 +328,15 @@ class TkClient:
         msg_entry.pack()
 
         def on_ok():
-            to_user = to_entry.get().strip()
+            to_user = to_entry.get()
             msg = msg_entry.get()
             w.destroy()
             if self.use_json:
                 req = {"command": "send_message", "receiver": to_user, "content": msg}
                 self.send_json(req)
             else:
-                #CMD=0x04, payload= b"receiver\0msg\0"
-                payload = (
-                    to_user.encode('utf-8') + b"\0" +
-                    msg.encode('utf-8')     + b"\0"
-                )
-                self.send_cmd(CMD_SEND, payload)
+                line = f"SND {to_user} {msg}"
+                self.send_line(line)
 
         tk.Button(w, text="OK", command=on_ok).pack()
 
@@ -428,6 +364,7 @@ class TkClient:
 
         def on_ok():
             pattern_to_use = pattern.get().strip()
+            print(pattern_to_use)
             if not pattern_to_use:
                 pattern_to_use = "*"
             if self.use_json:
@@ -435,9 +372,8 @@ class TkClient:
                 self.send_json(req)
                 self.current_listbox = account_listbox  
             else:
-                # CMD=0x05
-                payload = pattern_to_use.encode('utf-8') + b"\0"
-                self.send_cmd(CMD_LIST, payload)
+                line = f"LIS {pattern_to_use}"
+                self.send_line(line)
                 self.current_listbox = account_listbox
 
         tk.Button(w, text="OK", command=on_ok).pack()
@@ -479,20 +415,20 @@ class TkClient:
                         return
                 self.send_json(req)
             else:
-                #CMD=0x06
-                #1 byte = 1 if unread, 0 if not
-                #2 bytes = limit
-                unread_byte = b"\x01" if only_unread else b"\x00"
-                limit_val = 0
+                parts = ["RD"]
+                if only_unread:
+                    parts.append("UNREAD")
                 if limit_str:
                     try:
                         limit_val = int(limit_str)
-                    except:
-                        self.log("[Error] Invalid limit.")
+                        parts.append("LIMIT")
+                        parts.append(str(limit_val))
+                    except ValueError:
+                        self.log("[Error] Invalid integer for limit.")
                         return
-                limit_bytes = limit_val.to_bytes(2,'big')
-                payload = unread_byte + limit_bytes
-                self.send_cmd(CMD_READ, payload)
+                line = " ".join(parts)
+                self.send_line(line)
+
 
         tk.Button(w, text="OK", command=on_ok).pack()
 
@@ -533,9 +469,9 @@ class TkClient:
                     req = {"command": "delete_messages", "message_id": single_id}
                 self.send_json(req)
             else:
-                #CMD=0x07, payload is raw input
-                payload = raw_input.encode('utf-8')
-                self.send_cmd(CMD_DELMSG, payload)
+                line = f"DELMSG {raw_input}"
+                self.send_line(line)
+
         tk.Button(w, text="OK", command=on_ok).pack()
 
     def delete_account(self):
@@ -551,8 +487,8 @@ class TkClient:
                 req = {"command": "delete_user"}
                 self.send_json(req)
             else:
-                #CMD=0x08, no payload
-                self.send_cmd(CMD_DELUSER, b"")
+                self.send_line("DELUSER")
+
         tk.Button(w, text="OK", command=on_ok).pack()
 
     ### Run: Main Loop ###

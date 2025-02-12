@@ -7,7 +7,7 @@ import hashlib
 
 def hash_password(password: str) -> str:
    """
-   Returns a SHA256 hash of the given password
+   Returns a salted SHA256 hash of the given password
    """
   
    hashed_pw = hashlib.sha256(password.encode('utf-8'))
@@ -26,4 +26,3 @@ def verify_password(hashed_password: str, stored_hash: str) -> bool:
        print("System Error while verifying password.")
        return False
   
-

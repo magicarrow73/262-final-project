@@ -9,15 +9,6 @@ from .db import (
 )
 from .utils import verify_password
 
-CMD_CREATE = 0x01
-CMD_LOGIN  = 0x02
-CMD_LOGOUT = 0x03
-CMD_SEND   = 0x04
-CMD_LIST   = 0x05
-CMD_READ   = 0x06
-CMD_DELMSG = 0x07
-CMD_DELUSR = 0x08
-
 class Server:
     def __init__(self, host="127.0.0.1", port = 12345, protocol_type = "json"):
         """
@@ -156,26 +147,34 @@ class Server:
     
     def handle_custom_client(self, client_socket):
         """
-        Expect frames of [CMD(1)][LEN(2)][PAYLOAD] that we parse and then call parse_binary_command
+        Handle custom line-based protocol:
+          CRE <username> <pw-hash> <display name...>
+          LOG <username> <pw-hash>
+          LGO
+          SND <receiver> <content...>
+          LIS [pattern]
+          RD [UNREAD] [LIMIT n]
+          DELMSG <id or comma list>
+          DELUSER
+          ...
         """
+        buffer = b""
         try:
             while True:
-                header = self.recv_n_bytes(client_socket, 3)
-                if not header:
+                chunk = client_socket.recv(1024)
+                if not chunk:
                     break
-                cmd = header[0]
-                length = int.from_bytes(header[1:3], 'big')
+                buffer += chunk
 
-                payload = b""
-                if length>0:
-                    payload = self.recv_n_bytes(client_socket, length)
-                    if not payload:
-                        break
-
-                resp = self.parse_binary_command(cmd, payload, client_socket)
-                if resp:
-                    resp += b"\n"
-                    client_socket.sendall(resp)
+                while b"\n" in buffer:
+                    line, buffer = buffer.split(b"\n", 1)
+                    line_str = line.decode("utf-8", "replace").strip()
+                    if not line_str:
+                        continue
+                    
+                    response = self.parse_custom_command(line_str, client_socket)
+                    if response:
+                        client_socket.sendall((response + "\n").encode("utf-8"))
 
         except Exception as e:
             print(f"[Server] custom wire error: {e}")
@@ -187,152 +186,156 @@ class Server:
                     if username in self.socket_per_username:
                         del self.socket_per_username[username]
             client_socket.close()
-
-    def recv_n_bytes(self, sock, n):
-        """
-        Helper to read exactly n bytes or return None if disconnected
-        """
-        buf = b""
-        while len(buf) < n:
-            chunk = sock.recv(n - len(buf))
-            if not chunk:
-                return None
-            buf += chunk
-        return buf
     
-    def parse_custom_command(self, cmd, payload, client_socket):
+    def parse_custom_command(self, line_str, client_socket):
         """
-        Dispatch based on cmd and return a bytes object like b"OK something" or b"ERR something"
+        Parse the short commands and call the same logic as the JSON approach
+        Returns a short line response, e.g. "OK something" or "ERR something"
         """
+        tokens = line_str.split(" ")
+        cmd = tokens[0].upper()
 
-        if cmd == CMD_CREATE:
-            parts = payload.split(b"\0")
-            if len(parts)<3:
-                return b"ERR Not enough fields for create user"
-            user = parts[0].decode("utf-8","replace")
-            pw   = parts[1].decode("utf-8","replace")
-            disp = parts[2].decode("utf-8","replace")
-
-            fake_req = {"username": user, "hashed_password": pw, "display_name": disp}
-            r = self.create_user_command(fake_req, client_socket)
-            if r["status"] == "success":
-                return f"OK {r['message']}".encode("utf-8")
-            elif r["status"] == "user_exists":
-                return f"ERR {r['message']}".encode("utf-8")
+        if cmd == "CRE":  # create user
+            if len(tokens) < 4:
+                return "ERR Not enough args to CRE"
+            username = tokens[1]
+            pw_hash = tokens[2]
+            display_name = " ".join(tokens[3:])
+            fake_req = {
+                "username": username,
+                "hashed_password": pw_hash,
+                "display_name": display_name
+            }
+            resp = self.create_user_command(fake_req, client_socket)
+            if resp["status"] == "success":
+                return f"OK {resp['message']}"
+            elif resp["status"] == "user_exists":
+                return f"ERR {resp['message']}"
             else:
-                return f"ERR {r.get('message','Unknown error')}".encode("utf-8")
+                return f"ERR {resp.get('message','Unknown error')}"
 
-        elif cmd == CMD_LOGIN:
-            parts = payload.split(b"\0")
-            if len(parts)<2:
-                return b"ERR Not enough fields for login"
-            user = parts[0].decode("utf-8","replace")
-            pw   = parts[1].decode("utf-8","replace")
-
-            fake_req = {"username":user,"hashed_password":pw}
-            r = self.login_command(fake_req, client_socket)
-            if r["status"] == "success":
-                unread = r.get("unread_count",0)
-                return f"OK Logged in. Unread={unread}".encode("utf-8")
+        elif cmd == "LOG":  # login
+            if len(tokens) < 3:
+                return "ERR Not enough args to LOG"
+            username = tokens[1]
+            pw_hash = tokens[2]
+            fake_req = {
+                "username": username,
+                "hashed_password": pw_hash
+            }
+            resp = self.login_command(fake_req, client_socket)
+            if resp["status"] == "success":
+                unread = resp.get("unread_count", 0)
+                return f"OK Logged in. Unread={unread}"
             else:
-                return f"ERR {r.get('message','Login error')}".encode("utf-8")
+                return f"ERR {resp.get('message','Login error')}"
 
-        elif cmd == CMD_LOGOUT:
-            r = self.logout_command({}, client_socket)
-            if r["status"]=="success":
-                return f"OK {r['message']}".encode("utf-8")
+        elif cmd == "LGO":  # logout
+            resp = self.logout_command({}, client_socket)
+            if resp["status"] == "success":
+                return f"OK {resp['message']}"
             else:
-                return f"ERR {r['message']}".encode("utf-8")
+                return f"ERR {resp['message']}"
 
-        elif cmd == CMD_SEND:
-            parts = payload.split(b"\0")
-            if len(parts)<2:
-                return b"ERR Not enough fields for send"
-            receiver = parts[0].decode("utf-8","replace")
-            content  = parts[1].decode("utf-8","replace")
-
-            fake_req = {"receiver":receiver,"content":content}
-            r = self.send_message_command(fake_req, client_socket)
-            if r["status"]=="success":
-                return b"OK Message sent."
+        elif cmd == "SND":  # send message
+            if len(tokens) < 3:
+                return "ERR Not enough args to SND"
+            receiver = tokens[1]
+            content = " ".join(tokens[2:])
+            fake_req = {
+                "receiver": receiver,
+                "content": content
+            }
+            resp = self.send_message_command(fake_req, client_socket)
+            if resp["status"] == "success":
+                return "OK Message sent."
             else:
-                return f"ERR {r['message']}".encode("utf-8")
+                return f"ERR {resp['message']}"
 
-        elif cmd == CMD_LIST:
-            pattern = payload.split(b"\0")[0].decode("utf-8","replace") if payload else "*"
-            fake_req = {"pattern":pattern}
-            r = self.list_users_command(fake_req)
-            if r["status"]=="success":
-                users = r["users"]
+        elif cmd == "LIS":  # list users
+            pattern = "*"
+            if len(tokens) > 1:
+                pattern = tokens[1]
+            fake_req = {"pattern": pattern}
+            resp = self.list_users_command(fake_req)
+            if resp["status"] == "success":
+                users = resp["users"]
                 lines = [f"OK Found {len(users)} user(s)."]
                 for u in users:
                     lines.append(f"USR {u['username']} {u['display_name']}")
-                return ("\n".join(lines)).encode("utf-8")
+                return "\n".join(lines)
             else:
-                return f"ERR {r.get('message','Error listing')} ".encode("utf-8")
+                return f"ERR {resp.get('message','No user?')}"
 
-        elif cmd == CMD_READ:
-            if len(payload)<3:
-                only_unread=False
-                limit=None
-            else:
-                only_unread = (payload[0] == 1)
-                limit = int.from_bytes(payload[1:3],'big')
+        elif cmd == "RD":  # read messages
+            only_unread = False
+            limit = None
+            idx = 1
+            while idx < len(tokens):
+                t = tokens[idx].upper()
+                if t == "UNREAD":
+                    only_unread = True
+                elif t == "LIMIT" and (idx + 1) < len(tokens):
+                    idx += 1
+                    try:
+                        limit = int(tokens[idx])
+                    except ValueError:
+                        pass
+                idx += 1
 
-            fake_req = {"only_unread":only_unread}
-            if limit and limit>0:
+            fake_req = {"only_unread": only_unread}
+            if limit:
                 fake_req["limit"] = limit
-            r = self.read_messages_command(fake_req, client_socket)
-            if r["status"]=="success":
-                msgs = r["messages"]
+
+            resp = self.read_messages_command(fake_req, client_socket)
+            if resp["status"] == "success":
+                msgs = resp["messages"]
                 if not msgs:
-                    return b"OK No messages."
+                    return "OK No messages."
                 lines = []
                 for m in msgs:
                     lines.append(f"MSG {m['id']} from={m['sender_username']} content={m['content']}")
-                return ("\n".join(lines)).encode("utf-8")
+                return "\n".join(lines)
             else:
-                return f"ERR {r['message']}".encode("utf-8")
+                return f"ERR {resp['message']}"
 
-        elif cmd == CMD_DELMSG:
-            # e.g. "12" or "12,13"
-            raw = payload.decode("utf-8","replace").strip()
-            if not raw:
-                return b"ERR No message ID(s)"
-
+        elif cmd == "DELMSG":
+            if len(tokens) < 2:
+                return "ERR Not enough args to DELMSG"
+            raw = tokens[1]
             if "," in raw:
                 parts = [p.strip() for p in raw.split(",") if p.strip()]
                 try:
                     ids = [int(x) for x in parts]
                     fake_req = {"message_ids": ids}
                 except ValueError:
-                    return b"ERR Invalid ID(s)"
+                    return "ERR Invalid ID(s)"
             else:
                 try:
                     single_id = int(raw)
                     fake_req = {"message_id": single_id}
                 except ValueError:
-                    return b"ERR Invalid ID"
+                    return "ERR Invalid ID"
 
-            r = self.delete_messages_command(fake_req, client_socket)
-            if r["status"]=="success":
-                dcount = r.get("deleted_count",0)
-                return f"OK Deleted {dcount} messages.".encode("utf-8")
+            resp = self.delete_messages_command(fake_req, client_socket)
+            if resp["status"] == "success":
+                deleted = resp.get("deleted_count", 0)
+                return f"OK Deleted {deleted} messages."
             else:
-                return f"ERR {r['message']}".encode("utf-8")
+                return f"ERR {resp['message']}"
 
-        elif cmd == CMD_DELUSR:
-            r = self.delete_user_command(client_socket)
-            if isinstance(r, dict):
-                if r["status"]=="success":
-                    return f"OK {r['message']}".encode("utf-8")
+        elif cmd == "DELUSER":
+            resp = self.delete_user_command(client_socket)
+            if isinstance(resp, dict):
+                if resp["status"] == "success":
+                    return f"OK {resp['message']}"
                 else:
-                    return f"ERR {r.get('message','Error')}".encode("utf-8")
+                    return f"ERR {resp.get('message','Error')}"
             else:
-                return f"ERR {r}".encode("utf-8")
+                return f"ERR {resp}"
 
         else:
-            return b"ERR Unknown command"
+            return "ERR Unknown command"
             
 
     # ===== JSON Command Handlers =====
