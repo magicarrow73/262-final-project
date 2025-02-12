@@ -7,7 +7,7 @@ from .db import (
     create_message, list_users, get_messages_for_user, 
     mark_message_read, delete_message, get_num_unread_messages 
 )
-from .utils import hash_password, verify_password
+from .utils import verify_password
 
 class Server:
     def __init__(self, host="127.0.0.1", port = 12345, protocol_type = "json"):
@@ -26,6 +26,11 @@ class Server:
         
         # reverse (for easy search): dictionary of {`username`: `client_socket`}
         self.socket_per_username = {}
+
+         # A lock to protect active_users and socket_by_username
+         # Prevents race conditions from multiple threads accessing and/or edit these dictionaries
+        self.lock = threading.Lock()
+
         
     def start(self):
         """
@@ -49,7 +54,7 @@ class Server:
         except KeyboardInterrupt:
             print("[Server] Shutting down the server rip gg...")
         finally:
-            #close db and server socket
+            # close db and server socket
             close_db()
             self.server.close()  
      
@@ -66,17 +71,18 @@ class Server:
         else:
             print("[Server] Invalid protocol type, please specify a new one.")
         
-        # cleanup after client disconnects (or error)
-        if client_socket in self.active_users:
-            username = self.active_users[client_socket]
-            
-            # remove (user, socket) pair
-            del self.active_users[client_socket] 
-            
-            # remove (socket, user) pair
-            # this is a check, the `if` statement should always hold
-            if username in self.socket_per_username:
-                del self.socket_per_username[username]
+        # Cleanup when client disconnects
+        with self.lock:
+            if client_socket in self.active_users:
+                username = self.active_users[client_socket]
+                
+                # remove (user, socket) pair
+                del self.active_users[client_socket] 
+                
+                # remove (socket, user) pair
+                # this is a check, the `if` statement should always hold
+                if username in self.socket_per_username:
+                    del self.socket_per_username[username]
         
         # close the client socket
         client_socket.close()
@@ -123,7 +129,7 @@ class Server:
                 elif command == "delete_messages":
                     response = self.delete_messages_command(request, client_socket)
                 elif command == "delete_user":
-                    response = self.delete_user_command(request)
+                    response = self.delete_user_command(client_socket)
                 else:
                     response = {"status": "error", "message": "Unknown command."}
                 # send response back to client
@@ -201,8 +207,9 @@ class Server:
             return response
         
         # add user to active users
-        self.active_users[client_socket] = username
-        self.socket_per_username[username] = client_socket
+        with self.lock:
+            self.active_users[client_socket] = username
+            self.socket_per_username[username] = client_socket
         
         # get the number of unread messages
         unread_count = get_num_unread_messages(username)
@@ -270,10 +277,11 @@ class Server:
         - limit: integer limit
         Return them in descending timestamp order.
         """
-        username = self.active_users.get(client_socket)
-        if not username:
-            return {"status": "error", "message": "You are not logged in."}
-        
+        with self.lock:
+            username = self.active_users.get(client_socket)
+            if not username:
+                return {"status": "error", "message": "You are not logged in."}
+            
         only_unread = bool(request.get("only_unread", False))
         limit = request.get("limit", None)
         if limit is not None:
@@ -284,7 +292,7 @@ class Server:
         
         messages = get_messages_for_user(username, only_unread=only_unread, limit=limit)
 
-        mark_as_read = bool(request.get("mark_read", False))        
+        mark_as_read = True # TODO: can be an option [in the future version of the app, potentially]. 
         if mark_as_read:
             for msg in messages:
                 mark_message_read(msg["id"], username)
@@ -310,10 +318,11 @@ class Server:
         Delete one or more messages for logged in user
         Expects "message_id" as an int or "message_ids" as a list
         """
-        username = self.active_users.get(client_socket)
-        if not username:
-            return {"status": "error", "message": "You are not logged in, please try again"}
-        
+        with self.lock:
+            username = self.active_users.get(client_socket)
+            if not username:
+                return {"status": "error", "message": "You are not logged in, please try again"}
+            
         #allow for either single message_id or list of message_ids
         message_id = request.get("message_id")
         message_ids = request.get("message_ids", [])
@@ -339,14 +348,18 @@ class Server:
             return {"status": "error", "message": "No messages deleted."}
 
     # command to delete a user
-    def delete_user_command(self, request):
+    def delete_user_command(self, client_socket):
         """
-        Delete a specified user from the database and cascade delete their messages
+        Delete your user from the database and cascade delete their messages
+        Note that only the user who is logged in can delete themselves, therwise arbitrary deletions may occur.
         """
-        username = request.get("username")
+        with self.lock:
+            if client_socket not in self.active_users:
+                return "Users not logged in are not allowed to delete other users."
+            username = self.active_users[client_socket]
         success = delete_user(username)
         if success:
-            response = {"status": "success", "message": "User deleted successfully."}
+            response = {"status": "success", "message": f"Your user {username} deleted successfully."}
         else:
             response = {"status": "error", "message": "User not found."}
         return response
@@ -371,3 +384,25 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+### historical code
+### saved in case needs to be referenced in the future 
+
+# # command to delete a user
+# PREVIOUS VERSION OF COMMANDS: any user can delete any other user 
+# THIS PREVIOUS VERSION is kept for reference, but is obsolete.
+# def delete_user_command(self, request, client_socket):
+#     """
+#     Delete a specified user from the database and cascade delete their messages
+#     """
+#     with self.lock:
+#         if client_socket not in self.active_users:
+#             return "Users not logged in are not allowed to delete other users."
+#         username = request.get("username")
+#     success = delete_user(username)
+#     if success:
+#         response = {"status": "success", "message": "User deleted successfully."}
+#     else:
+#         response = {"status": "error", "message": "User not found."}
+#     return response

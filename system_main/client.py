@@ -406,17 +406,14 @@ class TkClient:
 
     def delete_account(self):
         if self.use_json:
+            
             w = tk.Toplevel(self.root)
-            w.title("Delete Account")
+            w.title("Are you sure you want to delete your account? Press OK to confirm.")
 
-            tk.Label(w, text="Username to delete").pack()
-            user_entry = tk.Entry(w)
-            user_entry.pack()
 
             def on_ok():
-                user = user_entry.get()
                 w.destroy()
-                req = {"command": "delete_user", "username": user}
+                req = {"command": "delete_user"}
                 self.send_json(req)
 
             tk.Button(w, text="OK", command=on_ok).pack()

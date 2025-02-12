@@ -1,3 +1,4 @@
 chat.db
 *.pyc
 chat.db
+temp*.py

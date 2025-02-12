@@ -231,6 +231,7 @@ def mark_message_read(message_id: int, username: str) -> bool:
         SET read_status = 1
         WHERE id = ? AND receiver_id = ?""", (message_id, receiver_id))
     c.commit()
+    print(cur.rowcount)
     return (cur.rowcount > 0)
 
 def delete_message(message_id: int, username: str) -> bool:
