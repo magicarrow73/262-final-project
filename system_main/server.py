@@ -104,7 +104,7 @@ class Server:
                 
                 # get command
                 unprocessed_command = request.get("command").lower()
-                command = unprocessed_command.lower() if isinstance #make sure command is a string to avoid attribute errors
+                command = unprocessed_command.lower() if isinstance(unprocessed_command, str) else "" #make sure command is a string to avoid attribute error
                 
                 # process command
                 if command == "create_user":
