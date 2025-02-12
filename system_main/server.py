@@ -234,7 +234,7 @@ class Server:
         users_list = [{"username": u[0], "display_name": u[1]} for u in users]
         
         # return response to send back to client
-        response = {"status": "success", "users": users_list}
+        response = {"status": "success", "users": users_list, "pattern": pattern}
         return response
         
     # command to send a message

@@ -64,47 +64,42 @@ class TkClient:
                 break
 
     def handle_server_line(self, line: str):
+        """
+        Handles incoming messages from the server, including updates to the list of users.
+        """
         if self.use_json:
             try:
                 obj = json.loads(line)
                 status = obj.get("status")
                 message = obj.get("message", "")
+
                 if status == "success":
                     self.log(f"[SUCCESS] {message}")
 
-                    #if the server returns a list of users
+                    # If the server returns a list of users, update the listbox
                     if "users" in obj:
-                        self.log("Listing Users:")
+                        if "pattern" in obj: 
+                            pattern_str = obj["pattern"]
+                            self.log(f"Listing Users Matching Pattern: {pattern_str}")
+                        else:
+                            self.log(f"Listing Users:") 
+                        if hasattr(self, 'current_listbox'):  # Ensure reference exists
+                            self.current_listbox.delete(0, tk.END)  # Clear previous entries
                         for u in obj["users"]:
-                            # Each user is {"username": "...", "display_name": "..."}
-                            self.log(f"  {u['username']} ({u['display_name']})")
-
-                    #if the server returns a list of messages
-                    if "messages" in obj:
-                        self.log("Messages:")
-                        for m in obj["messages"]:
-                            sender = m["sender_username"]
-                            ts = m["timestamp"]
-                            content = m["content"]
-                            msg_id = m["id"]
-                            self.log(f"  ID={msg_id}, from={sender}, time={ts}, content={content}")
-                    
-                    if "unread_count" in obj:
-                        self.log(f"You have {obj['unread_count']} unread messages.")
-
-                    if "deleted_count" in obj:
-                        self.log(f"Deleted {obj['deleted_count']} messages.")
+                            user_info = f"{u['username']} ({u['display_name']})"
+                            self.log(f"  {user_info}")
+                            if hasattr(self, 'current_listbox'):
+                                self.current_listbox.insert(tk.END, user_info)
 
                 elif status == "error":
                     self.log(f"[ERROR] {message}")
                 else:
-                    # Fallback if there is no status that we recognize
                     self.log(f"[RESPONSE] {obj}")
 
             except json.JSONDecodeError:
                 self.log(f"[Invalid JSON from server] {line}")
         else:
-            # Custom wire wich we have not implemented yet
+            # custom wire we have not implemented yet
             self.log(line)
 
     def log(self, msg):
@@ -232,36 +227,40 @@ class TkClient:
         tk.Button(w, text="OK", command=on_ok).pack()
 
     def list_accounts_dialog(self):
+        """
+        Opens a dialog to request a list of accounts matching a pattern and displays the results in a scrollable list.
+        """
         w = tk.Toplevel(self.root)
-        w.title("Create Account")
+        w.title("List Accounts")
 
         tk.Label(w, text="Pattern to Match Accounts").pack()
+
         pattern = tk.Entry(w)
         pattern.pack()
 
+        list_frame = tk.Frame(w)
+        list_frame.pack(fill=tk.BOTH, expand=True)
+
+        scrollbar = tk.Scrollbar(list_frame, orient=tk.VERTICAL)
+        account_listbox = tk.Listbox(list_frame, yscrollcommand=scrollbar.set, width=50, height=10)
+        scrollbar.config(command=account_listbox.yview)
+
+        account_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
         def on_ok():
             pattern_to_use = pattern.get()
-            w.destroy()
             if self.use_json:
-                req = {
-                    "command": "list_users",
-                    "pattern": pattern_to_use
-                }
+                req = {"command": "list_users", "pattern": pattern_to_use}
                 self.send_json(req)
+
+                # Store reference to update later
+                self.current_listbox = account_listbox  
             else:
-                pass
-                # TODO
-                #custom protocol
-                # line = f"CREATE {username} {password} {display}"
-                # self.send_line(line)
+                pass  # Implement if using a custom protocol
 
         tk.Button(w, text="OK", command=on_ok).pack()
 
-    def list_accounts(self):
-        if self.use_json:
-            self.send_json({"command": "list_users"})
-        else:
-            self.send_line("LIST")
 
     def read_messages(self):
         if self.use_json:
