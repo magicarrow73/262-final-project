@@ -321,20 +321,40 @@ class TkClient:
 
     def delete_msg_dialog(self):
         w = tk.Toplevel(self.root)
-        w.title("Delete Message")
+        w.title("Delete Message(s)")
 
-        tk.Label(w, text="Message ID").pack()
+        tk.Label(w, text="Message ID(s) (comma separated)").pack()
         msg_id_entry = tk.Entry(w)
         msg_id_entry.pack()
 
         def on_ok():
-            mid = msg_id_entry.get()
+            raw_input = msg_id_entry.get().strip()
             w.destroy()
+            if not raw_input:
+                return
+            
+            if "," in raw_input:
+                parts = [p.strip() for p in raw_input.split(",") if p.strip()]
+                try:
+                    ids_list = [int(x) for x in parts]
+                except ValueError:
+                    self.log("[Error] Invalid input: all message IDs must be numeric.")
+                    return
+
+                req = {"command": "delete_messages", "message_ids": ids_list}
+            else:
+                try:
+                    single_id = int(raw_input)
+                except ValueError:
+                    self.log("[Error] Invalid input: message ID must be numeric.")
+                    return
+
+                req = {"command": "delete_messages", "message_id": single_id}
+        
             if self.use_json:
-                req = {"command": "delete_messages", "message_id": int(mid)}
                 self.send_json(req)
             else:
-                self.send_line(f"DELETE_MSG {mid}")
+                pass
 
         tk.Button(w, text="OK", command=on_ok).pack()
 
