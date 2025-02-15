@@ -7,7 +7,7 @@ import hashlib
 
 def hash_password(password: str) -> str:
    """
-   Returns a salted SHA256 hash of the given password
+   Returns a SHA256 hash of the given password
    """
   
    hashed_pw = hashlib.sha256(password.encode('utf-8'))
