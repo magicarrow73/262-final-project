@@ -9,6 +9,30 @@ from .db import (
 )
 from .utils import verify_password
 
+def handle_json_client(self, client_socket):
+    try:
+        while True:
+            data = client_socket.recv(4096)
+            if not data:
+                break
+
+           
+
+            try:
+                request = json.loads(data.decode('utf-8'))
+            except json.JSONDecodeError:
+                print("[Server] Invalid JSON received.")
+                break
+
+            # ... process request ...
+            response = {"status": "success"}  # Example, replace with real response logic
+
+            encoded_response = (json.dumps(response) + "\n").encode('utf-8')
+            client_socket.sendall(encoded_response)
+            
+
+    except Exception as e:
+        print(f"[Server] JSON error handling client: {e}")
 class Server:
     def __init__(self, host="127.0.0.1", port = 12345, protocol_type = "json"):
         """
@@ -100,7 +124,7 @@ class Server:
                 data = client_socket.recv(4096)
                 if not data:
                     break
-                
+              
                 # decode + parse the data as JSON
                 try: 
                     request = json.loads(data.decode('utf-8'))
@@ -164,7 +188,7 @@ class Server:
                 if not chunk:
                     break
                 buffer += chunk
-
+              
                 while b"\n" in buffer:
                     line, buffer = buffer.split(b"\n", 1)
                     line_str = line.decode("utf-8", "replace").strip()

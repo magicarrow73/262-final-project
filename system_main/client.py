@@ -2,9 +2,41 @@ import tkinter as tk
 import socket
 import threading
 import json
+import os
 
 from .utils import hash_password
+import os
+from datetime import datetime
 
+CLIENT_LOG_FILE = "client_data_transfer_log.txt"
+CLIENT_TOTAL_SENT = 0
+CLIENT_TOTAL_RECEIVED = 0
+
+def log_transfer(bytes_count, direction="sent"):
+    """
+    Log the bytes transferred (sent or received) with a timestamp and running total.
+    """
+    global CLIENT_TOTAL_SENT, CLIENT_TOTAL_RECEIVED
+
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    
+    if direction == "sent":
+        CLIENT_TOTAL_SENT += bytes_count
+        running_total = CLIENT_TOTAL_SENT
+    else:  # direction == "received"
+        CLIENT_TOTAL_RECEIVED += bytes_count
+        running_total = CLIENT_TOTAL_RECEIVED
+
+    # If the log file doesn't exist, create it with a CSV header
+    if not os.path.exists(CLIENT_LOG_FILE):
+        with open(CLIENT_LOG_FILE, "w") as f:
+            f.write("Timestamp,Direction,Bytes,RunningTotal\n")
+
+    # Append the new log entry
+    with open(CLIENT_LOG_FILE, "a") as f:
+        f.write(f"{timestamp},{direction},{bytes_count},{running_total}\n")
+
+        
 class TkClient:
     def __init__(self, host="127.0.0.1", port=12345, use_json=True):
         """
@@ -62,6 +94,10 @@ class TkClient:
                 chunk = self.sock.recv(1024)
                 if not chunk:
                     break
+                try:
+                    log_transfer(len(chunk), direction="received")  # Log received data size
+                except Exception as e:
+                    self.log(f"[Error] Failed to log received data size: {e}")
                 buffer += chunk
                 while b"\n" in buffer:
                     line, buffer = buffer.split(b"\n", 1)
@@ -179,6 +215,10 @@ class TkClient:
         """
         try:
             self.sock.sendall((line + "\n").encode('utf-8'))
+            try:
+                log_transfer(len((line + "\n").encode('utf-8')), direction="sent")  # Log sent data size
+            except Exception as e:
+                self.log(f"[Error] Failed to log sent data size: {e}")
         except:
             self.log("[Error] Failed to send wire")
 
@@ -190,6 +230,11 @@ class TkClient:
         try:
             line = json.dumps(obj) + "\n"
             self.sock.sendall(line.encode('utf-8'))
+            
+            try: 
+                log_transfer(len(line.encode('utf-8')), direction="sent")  # Log sent data size
+            except Exception as e:
+                self.log(f"[Error] Failed to log sent data size: {e}")
         except Exception as e:
             self.log(f"[Error] Failed to send JSON: {e}")
 
