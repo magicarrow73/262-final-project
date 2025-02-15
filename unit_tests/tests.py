@@ -6,6 +6,9 @@ os.environ["CHAT_DB_PATH"] = ":memory:"
 from system_main.db import init_db, close_db, create_user, get_user_by_username, delete_user, create_message, get_messages_for_user, mark_message_read, delete_message, get_num_unread_messages
 from system_main.utils import hash_password, verify_password
 
+# The following tests are for internal functions within the code .
+# They concern the internal database operations which are critical to the functioning of the system.
+
 # The following tests are for the system_main.db module and the system_main.utils module
 # They test the user operations. Password hashing and verification are also tested here.
 class TestUserOperations(unittest.TestCase):
