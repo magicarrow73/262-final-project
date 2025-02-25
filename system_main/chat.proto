@@ -1,0 +1,137 @@
+syntax = "proto3";
+
+package chat;
+
+// option python_package = "chatpb";
+
+// ---------- Message Definitions ---------- //
+
+// Basic user-creation
+message CreateUserRequest {
+  string username = 1;
+  string hashed_password = 2;
+  string display_name = 3;
+}
+
+message CreateUserResponse {
+  string status = 1;     // "success", "error", or "user_exists"
+  string message = 2;
+  string username = 3;   // echo back the username if needed
+}
+
+// For logging in / out
+message LoginRequest {
+  string username = 1;
+  string hashed_password = 2;
+}
+message LoginResponse {
+  string status = 1;         // "success" or "error"
+  string message = 2;        // e.g., "Login successful"
+  int32 unread_count = 3;    // number of unread messages
+  string username = 4;       // echo back the username
+}
+
+message LogoutRequest {
+  string username = 1;  // The user who is logging out
+}
+message LogoutResponse {
+  string status = 1;
+  string message = 2;
+}
+
+// Listing users
+message ListUsersRequest {
+  string username = 1;  // The user making this request (for validation)
+  string pattern = 2;
+}
+
+message UserInfo {
+  string username = 1;
+  string display_name = 2;
+}
+
+message ListUsersResponse {
+  string status = 1;
+  string message = 2;
+  repeated UserInfo users = 3;
+  string pattern = 4;
+}
+
+// Sending a message
+message SendMessageRequest {
+  string sender = 1;   // the currently logged-in user
+  string receiver = 2; // the user to whom the message is sent
+  string content = 3;
+}
+
+message SendMessageResponse {
+  string status = 1;
+  string message = 2;
+}
+
+// Reading messages
+message ReadMessagesRequest {
+  string username = 1;
+  bool only_unread = 2;
+  int32 limit = 3;
+}
+
+message ChatMessage {
+  int32 id = 1;
+  string sender_username = 2;
+  string content = 3;
+  string timestamp = 4;
+  int32 read_status = 5;
+}
+
+message ReadMessagesResponse {
+  string status = 1;
+  string message = 2;
+  repeated ChatMessage messages = 3;
+}
+
+// Deleting messages
+message DeleteMessagesRequest {
+  string username = 1;
+  repeated int32 message_ids = 2;
+}
+message DeleteMessagesResponse {
+  string status = 1;
+  string message = 2;
+  int32 deleted_count = 3;
+}
+
+// Deleting a user
+message DeleteUserRequest {
+  string username = 1;
+}
+message DeleteUserResponse {
+  string status = 1;
+  string message = 2;
+}
+
+// ---------- Push Notification Streaming ---------- //
+
+message SubscribeRequest {
+  string username = 1;  // user who wants to receive push notifications
+}
+message IncomingMessage {
+  string sender = 1;
+  string content = 2;
+}
+
+// ---------- Service Definition ---------- //
+
+service ChatService {
+  rpc CreateUser(CreateUserRequest) returns (CreateUserResponse);
+  rpc Login(LoginRequest) returns (LoginResponse);
+  rpc Logout(LogoutRequest) returns (LogoutResponse);
+  rpc ListUsers(ListUsersRequest) returns (ListUsersResponse);
+  rpc SendMessage(SendMessageRequest) returns (SendMessageResponse);
+  rpc ReadMessages(ReadMessagesRequest) returns (ReadMessagesResponse);
+  rpc DeleteMessages(DeleteMessagesRequest) returns (DeleteMessagesResponse);
+  rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse);
+
+  // A server-streaming method for "push notifications" of new messages
+  rpc Subscribe(SubscribeRequest) returns (stream IncomingMessage);
+}
