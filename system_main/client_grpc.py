@@ -376,7 +376,7 @@ def main():
     import argparse
     parser = argparse.ArgumentParser(description="gRPC Chat Client")
     parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=50051)
+    parser.add_argument("--port", type=int, default=12345)
     args = parser.parse_args()
 
     gui = TkClientGRPC(host=args.host, port=args.port)
