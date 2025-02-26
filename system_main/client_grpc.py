@@ -2,12 +2,26 @@ import tkinter as tk
 import threading
 import grpc
 import argparse
+import os
 
 import chat_pb2
 import chat_pb2_grpc
 
-from db import init_db, close_db  # Not strictly needed in client
 from utils import hash_password
+
+CLIENT_LOG_FILE = "client_data_usage.log"
+
+def log_data_usage(method_name: str, request_size: int, response_size: int):
+    """
+    Append data usage (req_size, resp_size) to a local file with a header if needed.
+    """
+    file_exists = os.path.exists(CLIENT_LOG_FILE)
+    if not file_exists:
+        with open(CLIENT_LOG_FILE, "w") as f:
+            f.write("method_name,request_size,response_size\n")
+
+    with open(CLIENT_LOG_FILE, "a") as f:
+        f.write(f"{method_name},{request_size},{response_size}\n")
 
 class TkClientGRPC:
     def __init__(self, host="127.0.0.1", port=12345):
@@ -16,7 +30,6 @@ class TkClientGRPC:
         self.channel = None
         self.stub = None
 
-        # Current logged-in user
         self.current_user = None
         self.subscribe_thread = None
         self.subscribe_stop_event = threading.Event()
@@ -50,6 +63,9 @@ class TkClientGRPC:
         self.log(f"Connected to gRPC server at {address}")
 
     def log(self, msg):
+        """
+        Logs to the GUI text area.
+        """
         self.text_area.config(state='normal')
         self.text_area.insert(tk.END, msg + "\n")
         self.text_area.config(state='disabled')
@@ -110,8 +126,12 @@ class TkClientGRPC:
                 hashed_password=hashed_pw,
                 display_name=display
             )
+            req_size = len(req.SerializeToString())
             try:
                 resp = self.stub.CreateUser(req)
+                resp_size = len(resp.SerializeToString())
+                log_data_usage("CreateUser", req_size, resp_size)
+
                 self.log(f"[{resp.status.upper()}] {resp.message}")
             except grpc.RpcError as e:
                 self.log(f"[ERROR] {e.details()}")
@@ -137,8 +157,12 @@ class TkClientGRPC:
 
             hashed_pw = hash_password(password)
             req = chat_pb2.LoginRequest(username=username, hashed_password=hashed_pw)
+            req_size = len(req.SerializeToString())
             try:
                 resp = self.stub.Login(req)
+                resp_size = len(resp.SerializeToString())
+                log_data_usage("Login", req_size, resp_size)
+
                 self.log(f"[{resp.status.upper()}] {resp.message} (unread={resp.unread_count})")
                 if resp.status == "success":
                     self.current_user = resp.username
@@ -162,8 +186,12 @@ class TkClientGRPC:
             self.stop_subscription_thread()
 
             req = chat_pb2.LogoutRequest(username=self.current_user)
+            req_size = len(req.SerializeToString())
             try:
                 resp = self.stub.Logout(req)
+                resp_size = len(resp.SerializeToString())
+                log_data_usage("Logout", req_size, resp_size)
+
                 self.log(f"[{resp.status.upper()}] {resp.message}")
                 if resp.status == "success":
                     self.current_user = None
@@ -198,8 +226,12 @@ class TkClientGRPC:
                 receiver=receiver,
                 content=content
             )
+            req_size = len(req.SerializeToString())
             try:
                 resp = self.stub.SendMessage(req)
+                resp_size = len(resp.SerializeToString())
+                log_data_usage("SendMessage", req_size, resp_size)
+
                 self.log(f"[{resp.status.upper()}] {resp.message}")
             except grpc.RpcError as e:
                 self.log(f"[ERROR] {e.details()}")
@@ -230,8 +262,12 @@ class TkClientGRPC:
         def on_ok():
             pat = pattern_entry.get().strip() or "*"
             req = chat_pb2.ListUsersRequest(username=self.current_user, pattern=pat)
+            req_size = len(req.SerializeToString())
             try:
                 resp = self.stub.ListUsers(req)
+                resp_size = len(resp.SerializeToString())
+                log_data_usage("ListUsers", req_size, resp_size)
+
                 self.log(f"[{resp.status.upper()}] {resp.message}")
                 account_listbox.delete(0, tk.END)
                 for u in resp.users:
@@ -277,8 +313,12 @@ class TkClientGRPC:
                 only_unread=only_unread,
                 limit=limit_val
             )
+            req_size = len(req.SerializeToString())
             try:
                 resp = self.stub.ReadMessages(req)
+                resp_size = len(resp.SerializeToString())
+                log_data_usage("ReadMessages", req_size, resp_size)
+
                 self.log(f"[{resp.status.upper()}] {resp.message}")
                 for m in resp.messages:
                     self.log(f"  ID={m.id}, from={m.sender_username}, content={m.content}")
@@ -318,8 +358,12 @@ class TkClientGRPC:
                 username=self.current_user,
                 message_ids=msg_ids
             )
+            req_size = len(req.SerializeToString())
             try:
                 resp = self.stub.DeleteMessages(req)
+                resp_size = len(resp.SerializeToString())
+                log_data_usage("DeleteMessages", req_size, resp_size)
+
                 self.log(f"[{resp.status.upper()}] {resp.message}, count={resp.deleted_count}")
             except grpc.RpcError as e:
                 self.log(f"[ERROR] {e.details()}")
@@ -340,8 +384,12 @@ class TkClientGRPC:
             self.stop_subscription_thread()
 
             req = chat_pb2.DeleteUserRequest(username=self.current_user)
+            req_size = len(req.SerializeToString())
             try:
                 resp = self.stub.DeleteUser(req)
+                resp_size = len(resp.SerializeToString())
+                log_data_usage("DeleteUser", req_size, resp_size)
+
                 self.log(f"[{resp.status.upper()}] {resp.message}")
                 if resp.status == "success":
                     self.current_user = None
@@ -353,7 +401,6 @@ class TkClientGRPC:
     def run(self):
         self.connect()
         self.root.mainloop()
-        # Cleanup if user closes the window
         self.stop_subscription_thread()
 
 def main():

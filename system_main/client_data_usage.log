@@ -1,0 +1,10 @@
+method_name,request_size,response_size
+Login,70,32
+SendMessage,12,24
+Login,70,34
+ReadMessages,8,78
+ListUsers,7,96
+ListUsers,7,96
+Logout,4,37
+ListUsers,3,34
+Logout,4,37
