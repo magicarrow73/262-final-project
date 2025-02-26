@@ -295,7 +295,7 @@ class ChatServiceServicer(chat_pb2_grpc.ChatServiceServicer):
 
 def main():
     parser = argparse.ArgumentParser(description="Start gRPC chat server.")
-    parser.add_argument("--host", default="0.0.0.0",
+    parser.add_argument("--host", default="127.0.0.1",
                         help="Host (interface) to bind to, e.g. 0.0.0.0 or 127.0.0.1")
     parser.add_argument("--port", type=int, default=12345,
                         help="Port to bind the server on.")
