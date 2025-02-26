@@ -1,11 +1,12 @@
 import tkinter as tk
 import threading
 import grpc
+import argparse
 
 import chat_pb2
 import chat_pb2_grpc
 
-from db import init_db, close_db  # Not strictly needed in client unless you do something local
+from db import init_db, close_db  # Not strictly needed in client
 from utils import hash_password
 
 class TkClientGRPC:
@@ -15,7 +16,7 @@ class TkClientGRPC:
         self.channel = None
         self.stub = None
 
-        # Track current logged-in user (since we don't have a direct socket).
+        # Current logged-in user
         self.current_user = None
         self.subscribe_thread = None
         self.subscribe_stop_event = threading.Event()
@@ -29,8 +30,6 @@ class TkClientGRPC:
 
         self.entry = tk.Entry(self.root, width=80)
         self.entry.pack()
-        # In gRPC mode, pressing enter doesn’t send a raw line. We’ll keep it unused or optional.
-        # self.entry.bind("<Return>", self.some_function)
 
         self.btn_frame = tk.Frame(self.root)
         self.btn_frame.pack()
@@ -59,25 +58,18 @@ class TkClientGRPC:
     # ------------- Subscription / Push Handling ------------- #
 
     def start_subscription_thread(self):
-        """
-        Starts a background thread that calls Subscribe(...)
-        to listen for real-time incoming messages for self.current_user.
-        """
         if not self.current_user:
             return
-
         self.subscribe_stop_event.clear()
 
         def run_stream():
             request = chat_pb2.SubscribeRequest(username=self.current_user)
             try:
                 for incoming in self.stub.Subscribe(request):
-                    # This loop blocks until a message arrives or an error
                     if self.subscribe_stop_event.is_set():
                         break
                     sender = incoming.sender
                     content = incoming.content
-                    # Log the push notification to the UI
                     self.log(f"[New Message] from={sender}: {content}")
             except grpc.RpcError as e:
                 self.log(f"[Subscription ended] {e.details()}")
@@ -86,9 +78,6 @@ class TkClientGRPC:
         self.subscribe_thread.start()
 
     def stop_subscription_thread(self):
-        """
-        Signal the subscription thread to stop.
-        """
         self.subscribe_stop_event.set()
 
     # ------------- Dialog & Command Implementations ------------- #
@@ -152,8 +141,7 @@ class TkClientGRPC:
                 resp = self.stub.Login(req)
                 self.log(f"[{resp.status.upper()}] {resp.message} (unread={resp.unread_count})")
                 if resp.status == "success":
-                    self.current_user = resp.username  # store the current user
-                    # Start receiving push notifications
+                    self.current_user = resp.username
                     self.start_subscription_thread()
             except grpc.RpcError as e:
                 self.log(f"[ERROR] {e.details()}")
@@ -171,7 +159,6 @@ class TkClientGRPC:
 
         def on_ok():
             w.destroy()
-            # Stop subscription
             self.stop_subscription_thread()
 
             req = chat_pb2.LogoutRequest(username=self.current_user)
@@ -242,10 +229,7 @@ class TkClientGRPC:
 
         def on_ok():
             pat = pattern_entry.get().strip() or "*"
-            req = chat_pb2.ListUsersRequest(
-                username=self.current_user,
-                pattern=pat
-            )
+            req = chat_pb2.ListUsersRequest(username=self.current_user, pattern=pat)
             try:
                 resp = self.stub.ListUsers(req)
                 self.log(f"[{resp.status.upper()}] {resp.message}")
@@ -373,10 +357,11 @@ class TkClientGRPC:
         self.stop_subscription_thread()
 
 def main():
-    import argparse
     parser = argparse.ArgumentParser(description="gRPC Chat Client")
-    parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=12345)
+    parser.add_argument("--host", default="127.0.0.1",
+                        help="Server host to connect to.")
+    parser.add_argument("--port", type=int, default=12345,
+                        help="Server port to connect to.")
     args = parser.parse_args()
 
     gui = TkClientGRPC(host=args.host, port=args.port)

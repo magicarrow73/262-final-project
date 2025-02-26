@@ -2,6 +2,7 @@ import threading
 import queue
 import grpc
 from concurrent import futures
+import argparse
 
 import chat_pb2
 import chat_pb2_grpc
@@ -17,13 +18,11 @@ class ChatServiceServicer(chat_pb2_grpc.ChatServiceServicer):
     def __init__(self):
         super().__init__()
         # Keep track of which users are "logged in".
-        # E.g. active_users[username] = True
         self.active_users = {}
         self.lock = threading.Lock()
 
-        # For push notifications, we'll store a dictionary:
+        # For push notifications, we store a dictionary:
         #   subscribers[username] = queue.Queue() 
-        # so that the Subscribe() RPC can yield new messages from that queue.
         self.subscribers = {}
         self.subscribers_lock = threading.Lock()
 
@@ -174,7 +173,6 @@ class ChatServiceServicer(chat_pb2_grpc.ChatServiceServicer):
 
         # If the receiver is subscribed, push a real-time message:
         self.push_incoming_message(receiver, sender, content)
-
         return chat_pb2.SendMessageResponse(
             status="success",
             message="Message sent."
@@ -195,7 +193,7 @@ class ChatServiceServicer(chat_pb2_grpc.ChatServiceServicer):
 
         msgs_db = get_messages_for_user(username, only_unread=only_unread, limit=limit)
 
-        # Mark them read:
+        # Mark them read
         for m in msgs_db:
             mark_message_read(m["id"], username)
 
@@ -278,32 +276,42 @@ class ChatServiceServicer(chat_pb2_grpc.ChatServiceServicer):
         waiting for new messages from the queue, then yield them to the client.
         """
         username = request.username
-        # Check if user is logged in
         with self.lock:
             if username not in self.active_users:
                 # Immediately return, no streaming
                 return
 
-        # Create (or reuse) a queue for this user
+        # Create or reuse a queue for this user
         self.add_subscriber(username)
         q = self.subscribers[username]
 
         # Continuously yield new messages from the queue:
         while True:
             try:
-                # If the client cancels the RPC, this will raise an exception
                 sender, content = q.get(block=True)
                 yield chat_pb2.IncomingMessage(sender=sender, content=content)
-            except Exception as e:
+            except Exception:
                 break  # if there's an error or cancellation, end the stream
 
-def serve():
+def main():
+    parser = argparse.ArgumentParser(description="Start gRPC chat server.")
+    parser.add_argument("--host", default="0.0.0.0",
+                        help="Host (interface) to bind to, e.g. 0.0.0.0 or 127.0.0.1")
+    parser.add_argument("--port", type=int, default=12345,
+                        help="Port to bind the server on.")
+    args = parser.parse_args()
+
     init_db()
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-    chat_pb2_grpc.add_ChatServiceServicer_to_server(ChatServiceServicer(), server)
-    server.add_insecure_port("[::]:12345")
+
+    chat_pb2_grpc.add_ChatServiceServicer_to_server(
+        ChatServiceServicer(), server
+    )
+
+    address = f"{args.host}:{args.port}"
+    server.add_insecure_port(address)
     server.start()
-    print("gRPC server started on port 12345.")
+    print(f"gRPC server started on {address}")
     try:
         server.wait_for_termination()
     except KeyboardInterrupt:
@@ -312,4 +320,4 @@ def serve():
         close_db()
 
 if __name__ == "__main__":
-    serve()
+    main()
