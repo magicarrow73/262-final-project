@@ -2,7 +2,7 @@
 
 ## Creating chat_pb2.py, chat_pb2_grpc.py
 
-To use the gRPC client/server, first run the chat.proto file:
+To use the gRPC client/server, first compile the chat.proto file:
 
 ``` python -m grpc_tools.protoc \
   --proto_path=. \
