@@ -57,5 +57,7 @@ To run all unit tests, use the following command:
 
 ```python -m unittest discover -s unit_tests```
 
+One needs to make adjustments to a few of the files before running these tests, please refer to our engineering notebook for more details.
+
 ## Additional Information
 For elaboration on the intricacies of our codebase and test regime, please refer to our engineering notebook since it details these aspects in depth.
