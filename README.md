@@ -1,5 +1,17 @@
 # 262-wireprotocol: User Guide and Testing Instructions
 
+## Creating chat_pb2.py, chat_pb2_grpc.py
+
+To use the gRPC client/server, first run the chat.proto file:
+
+``` python -m grpc_tools.protoc \
+  --proto_path=. \
+  --python_out=. \
+  --grpc_python_out=. \
+  chat.proto
+```
+This will create two files, containing the protobuf message structs and service classes.
+
 ## Running the Client and Server
 ### Running the Client
 To run the client remotely, use the following command:
