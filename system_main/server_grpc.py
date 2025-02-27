@@ -14,14 +14,22 @@ from concurrent import futures
 import argparse
 import os
 
+# from system_main import chat_pb2
+# from system_main import chat_pb2_grpc
 import chat_pb2
 import chat_pb2_grpc
 
+# from system_main.db import (
+#     init_db, close_db, create_user, get_user_by_username, delete_user,
+#     create_message, list_users, get_messages_for_user,
+#     mark_message_read, delete_message, get_num_unread_messages
+# )
 from db import (
     init_db, close_db, create_user, get_user_by_username, delete_user,
     create_message, list_users, get_messages_for_user,
     mark_message_read, delete_message, get_num_unread_messages
 )
+# from system_main.utils import verify_password
 from utils import verify_password
 
 SERVER_LOG_FILE = "server_data_usage.log"
@@ -459,6 +467,8 @@ def main():
     parser.add_argument("--port", type=int, default=12345,
                         help="Port to bind the server on.")
     args = parser.parse_args()
+
+    #os.environ["CHAT_DB_PATH"] = ":memory:"
 
     init_db()
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))

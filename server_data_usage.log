@@ -1,0 +1,14 @@
+method_name,request_size,response_size
+CreateUser,26,44
+CreateUser,36,50
+Login,16,35
+SendMessage,25,65
+CreateUser,16,42
+Login,9,33
+SendMessage,31,24
+ReadMessages,5,96
+Logout,5,38
+ReadMessages,7,32
+DeleteMessages,10,32
+DeleteUser,7,30
+DeleteUser,5,31

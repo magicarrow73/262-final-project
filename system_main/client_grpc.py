@@ -12,8 +12,10 @@ import grpc
 import argparse
 import os
 
-import chat_pb2
+# from system_main import chat_pb2
+# from system_main import chat_pb2_grpc
 import chat_pb2_grpc
+import chat_pb2
 from utils import hash_password
 
 CLIENT_LOG_FILE = "client_data_usage.log"

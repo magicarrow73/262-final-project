@@ -17,3 +17,4 @@ ReadMessages,4,126
 DeleteMessages,7,32
 ReadMessages,4,80
 Logout,4,37
+CreateUser,72,40

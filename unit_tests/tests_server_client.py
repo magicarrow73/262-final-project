@@ -1,5 +1,6 @@
 import unittest
 import sys
+import os
 import time
 import threading
 import socket
@@ -8,7 +9,10 @@ import grpc
 # Import your server module from the system_main package
 from system_main.server_grpc import main as server_main
 
-from system_main import chat_pb2, chat_pb2_grpc
+import system_main.chat_pb2 as chat_pb2
+import system_main.chat_pb2_grpc as chat_pb2_grpc
+
+#from system_main import chat_pb2, chat_pb2_grpc
 
 from concurrent import futures
 

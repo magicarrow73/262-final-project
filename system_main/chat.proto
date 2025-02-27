@@ -1,6 +1,7 @@
 syntax = "proto3";
 
 package chat;
+option python_package = "system_main";
 
 // option python_package = "chatpb";
 
