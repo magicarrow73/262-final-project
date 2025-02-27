@@ -1,3 +1,12 @@
+"""
+server_grpc.py
+
+This script defines a gRPC server for a chat service. It handles 
+commands such as creating users, logging in/out, listing accounts, 
+sending messages, reading messages, and deleting users/messages. 
+Data usage (request/response sizes) is logged to a local file.
+"""
+
 import threading
 import queue
 import grpc
@@ -19,8 +28,19 @@ SERVER_LOG_FILE = "server_data_usage.log"
 
 def log_data_usage(method_name: str, request_size: int, response_size: int):
     """
-    Append data usage (req_size, resp_size) to a local file, with a header
-    if the file does not exist yet.
+    Logs data usage (request_size, response_size) to a local file.
+    
+    If SERVER_LOG_FILE does not exist, creates it and writes a header:
+    method_name,request_size,response_size
+    
+    Parameters:
+    -----------
+    method_name : str
+        The RPC method name, e.g. "Login", "SendMessage"
+    request_size : int
+        The size of the serialized request in bytes
+    response_size : int
+        The size of the serialized response in bytes
     """
     file_exists = os.path.exists(SERVER_LOG_FILE)
     if not file_exists:
@@ -31,7 +51,17 @@ def log_data_usage(method_name: str, request_size: int, response_size: int):
         f.write(f"{method_name},{request_size},{response_size}\n")
 
 class ChatServiceServicer(chat_pb2_grpc.ChatServiceServicer):
+    """
+    Implements the ChatService gRPC service methods. 
+    Maintains a list of active (logged-in) users and queues for push notifications.
+    """
+
     def __init__(self):
+        """
+        Constructor for ChatServiceServicer.
+        
+        Initializes locks, dictionaries for active_users, and subscribers for push messages.
+        """
         super().__init__()
         self.active_users = {}
         self.lock = threading.Lock()
@@ -40,16 +70,45 @@ class ChatServiceServicer(chat_pb2_grpc.ChatServiceServicer):
         self.subscribers_lock = threading.Lock()
 
     def add_subscriber(self, username):
+        """
+        Creates a subscription queue for a user if not already existing.
+        
+        Parameters:
+        -----------
+        username : str
+            The username to add a subscription queue for.
+        """
         with self.subscribers_lock:
             if username not in self.subscribers:
                 self.subscribers[username] = queue.Queue()
 
     def remove_subscriber(self, username):
+        """
+        Removes the subscription queue for a user.
+        
+        Parameters:
+        -----------
+        username : str
+            The username to remove.
+        """
         with self.subscribers_lock:
             if username in self.subscribers:
                 del self.subscribers[username]
 
     def push_incoming_message(self, receiver_username, sender, content):
+        """
+        Pushes an incoming message into the receiver's subscription queue.
+        If the receiver is currently subscribed, they will get a real-time message.
+        
+        Parameters:
+        -----------
+        receiver_username : str
+            The username of the message recipient.
+        sender : str
+            The username of the sender.
+        content : str
+            The message content.
+        """
         with self.subscribers_lock:
             if receiver_username in self.subscribers:
                 q = self.subscribers[receiver_username]
@@ -58,6 +117,10 @@ class ChatServiceServicer(chat_pb2_grpc.ChatServiceServicer):
     # ------------------ RPC Methods with Data Usage Logging ------------------
 
     def CreateUser(self, request, context):
+        """
+        Creates a new user in the database.
+        Logs request/response sizes to server_data_usage.log.
+        """
         req_size = len(request.SerializeToString())
 
         username = request.username
@@ -94,6 +157,10 @@ class ChatServiceServicer(chat_pb2_grpc.ChatServiceServicer):
         return resp
 
     def Login(self, request, context):
+        """
+        Logs in an existing user if credentials match.
+        Returns the unread message count on success.
+        """
         req_size = len(request.SerializeToString())
 
         username = request.username
@@ -137,6 +204,10 @@ class ChatServiceServicer(chat_pb2_grpc.ChatServiceServicer):
         return resp
 
     def Logout(self, request, context):
+        """
+        Logs out a user if they are currently active.
+        Removes them from active_users and unsubscribes them.
+        """
         req_size = len(request.SerializeToString())
 
         username = request.username
@@ -161,6 +232,9 @@ class ChatServiceServicer(chat_pb2_grpc.ChatServiceServicer):
         return resp
 
     def ListUsers(self, request, context):
+        """
+        Lists all users matching a given pattern if the user is logged in.
+        """
         req_size = len(request.SerializeToString())
 
         username = request.username
@@ -192,6 +266,10 @@ class ChatServiceServicer(chat_pb2_grpc.ChatServiceServicer):
         return resp
 
     def SendMessage(self, request, context):
+        """
+        Sends a message from 'sender' to 'receiver' if the sender is logged in.
+        Also triggers a push notification if the receiver is subscribed.
+        """
         req_size = len(request.SerializeToString())
 
         sender = request.sender
@@ -228,6 +306,10 @@ class ChatServiceServicer(chat_pb2_grpc.ChatServiceServicer):
         return resp
 
     def ReadMessages(self, request, context):
+        """
+        Retrieves messages for the current user, optionally only unread,
+        and marks them as read.
+        """
         req_size = len(request.SerializeToString())
 
         username = request.username
@@ -269,6 +351,9 @@ class ChatServiceServicer(chat_pb2_grpc.ChatServiceServicer):
         return resp
 
     def DeleteMessages(self, request, context):
+        """
+        Deletes one or more messages if the user is either the sender or receiver.
+        """
         req_size = len(request.SerializeToString())
 
         username = request.username
@@ -306,6 +391,9 @@ class ChatServiceServicer(chat_pb2_grpc.ChatServiceServicer):
         return resp
 
     def DeleteUser(self, request, context):
+        """
+        Deletes the current user from the database, along with their messages.
+        """
         req_size = len(request.SerializeToString())
 
         username = request.username
@@ -340,7 +428,10 @@ class ChatServiceServicer(chat_pb2_grpc.ChatServiceServicer):
         return resp
 
     def Subscribe(self, request, context):
-        # We'll omit data usage measurement for streaming.
+        """
+        Streaming RPC that yields messages to the user in real-time.
+        We omit data usage logging for streaming in this example.
+        """
         username = request.username
         with self.lock:
             if username not in self.active_users:
@@ -357,6 +448,11 @@ class ChatServiceServicer(chat_pb2_grpc.ChatServiceServicer):
                 break
 
 def main():
+    """
+    Main entry point for starting the gRPC chat server.
+    Parses command-line arguments, initializes the database,
+    and starts the server on the specified host and port.
+    """
     parser = argparse.ArgumentParser(description="Start gRPC chat server.")
     parser.add_argument("--host", default="127.0.0.1",
                         help="Host (interface) to bind to, e.g. 0.0.0.0 or 127.0.0.1")
@@ -366,9 +462,7 @@ def main():
 
     init_db()
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-    chat_pb2_grpc.add_ChatServiceServicer_to_server(
-        ChatServiceServicer(), server
-    )
+    chat_pb2_grpc.add_ChatServiceServicer_to_server(ChatServiceServicer(), server)
 
     address = f"{args.host}:{args.port}"
     server.add_insecure_port(address)

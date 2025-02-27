@@ -8,3 +8,12 @@ ListUsers,7,96
 Logout,4,37
 ListUsers,3,34
 Logout,4,37
+Login,70,32
+ListUsers,7,96
+Logout,4,37
+Login,70,32
+SendMessage,12,24
+ReadMessages,4,126
+DeleteMessages,7,32
+ReadMessages,4,80
+Logout,4,37
