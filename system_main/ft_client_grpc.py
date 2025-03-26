@@ -149,14 +149,17 @@ class FaultTolerantTkClientGRPC:
         while retries < self.max_retries:
             try:
                 if self.channel is None or self.stub is None:
+                    self.log("[DEBUG] try_rpc: Channel/stub is None, calling connect()")
                     if not self.connect():
                         raise Exception("No servers available")
                     
                 # Attempt the RPC call
+                self.log(f"[DEBUG] try_rpc: calling RPC function on server index={self.current_server_idx}")
                 return rpc_func(*args, **kwargs)
             
             except grpc.RpcError as e:
                 last_exception = e
+                self.log(f"[DEBUG] try_rpc: caught RpcError {e.code()} => {e.details() or str(e)}")
                 # Only retry on connection-related errors
                 if e.code() in [grpc.StatusCode.UNAVAILABLE, grpc.StatusCode.DEADLINE_EXCEEDED]:
                     self.log(f"RPC error ({e.code()}): {e.details() or str(e)}. Reconnecting...")

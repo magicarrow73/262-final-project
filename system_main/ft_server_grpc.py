@@ -96,7 +96,7 @@ class FaultTolerantChatServicer(chat_pb2_grpc.ChatServiceServicer):
             self.raft_db.waitReady()
 
         # Create user (this is a replicated operation)
-        success = self.raft_db.create_user(username, hashed_password, display_name, sync=True, timeout=5.0)
+        success = self.raft_db.create_user(username, hashed_password, display_name, sync=True, timeout=20.0)
         
         if not success:
             resp = chat_pb2.CreateUserResponse(
@@ -128,9 +128,9 @@ class FaultTolerantChatServicer(chat_pb2_grpc.ChatServiceServicer):
         # 1) DEBUG: Check Raft status
         status = self.raft_db.getStatus()
         if status is not None:
-            role = status.get('role')
+            state = status.get('state')
             leader = status.get('leader')
-            print(f"[DEBUG] getStatus() => role={role}, known_leader={leader}")
+            print(f"[DEBUG] getStatus() => state={state}, known_leader={leader}")
         else:
             print("[DEBUG] getStatus() returned None (node might not be ready)")
 
@@ -167,7 +167,7 @@ class FaultTolerantChatServicer(chat_pb2_grpc.ChatServiceServicer):
         # ---------------------------------------------------------
         # (A) Synchronous Raft replication with a 5s timeout
         # ---------------------------------------------------------
-        result = self.raft_db.user_login(username, sync=True, timeout=10.0)
+        result = self.raft_db.user_login(username, sync=True, timeout=20.0)
         if result is None:
             print("[DEBUG] user_login(...) returned None => possibly forwarding or replication timed out.")
             # Possibly we're on a follower and didn't get the final result,
@@ -226,7 +226,7 @@ class FaultTolerantChatServicer(chat_pb2_grpc.ChatServiceServicer):
             self.raft_db.waitReady()
         
         # Logout user (replicated operation)
-        success = self.raft_db.user_logout(username,sync=True,timeout=5.0)
+        success = self.raft_db.user_logout(username,sync=True,timeout=20.0)
 
         if not success:
             resp = chat_pb2.LogoutResponse(
@@ -305,7 +305,7 @@ class FaultTolerantChatServicer(chat_pb2_grpc.ChatServiceServicer):
         # Send message (replicated operation)
         success = self.raft_db.create_message(
             sender, receiver, content,
-            sync=True, timeout=5.0
+            sync=True, timeout=20.0
         )
 
         if not success:
@@ -358,7 +358,7 @@ class FaultTolerantChatServicer(chat_pb2_grpc.ChatServiceServicer):
         for m in msgs_db:
             result = self.raft_db.mark_message_read(
                 m["id"], username,
-                sync=True, timeout=5.0
+                sync=True, timeout=20.0
             )
             if not result:
                 all_marked = False
@@ -416,7 +416,7 @@ class FaultTolerantChatServicer(chat_pb2_grpc.ChatServiceServicer):
         for mid in request.message_ids:
             result = self.raft_db.delete_message(
                 mid, username,
-                sync=True, timeout=5.0
+                sync=True, timeout=20.0
             )
             if result:
                 deleted_count += 1
@@ -462,7 +462,7 @@ class FaultTolerantChatServicer(chat_pb2_grpc.ChatServiceServicer):
         success = self.raft_db.delete_user(
             username,
             sync=True,
-            timeout=5.0
+            timeout=20.0
         )
 
         if not success:
@@ -546,6 +546,38 @@ def run_server(host, port, node_id, raft_port, other_nodes=None):
     
     # Wait for initial Raft consensus
     time.sleep(5)  # Give Raft time to establish leadership
+
+    def debug_print_cluster():
+        while True:
+            time.sleep(5)
+            status = raft_db.getStatus()
+            if status is not None:
+                # status is a dict containing various info like 'state', 'leader', 'has_quorum', etc.
+                state_num = status.get('state')  # 0=follower, 1=candidate, 2=leader
+                if state_num == 0:
+                    role_str = "Follower"
+                elif state_num == 1:
+                    role_str = "Candidate"
+                elif state_num == 2:
+                    role_str = "Leader"
+                else:
+                    role_str = "Unknown"
+
+                leader = status.get('leader')
+                has_quorum = status.get('has_quorum')
+                partner_count = status.get('partner_nodes_count', -1)
+
+                print(f"[DEBUG] Node {node_id} => role={role_str}, leader={leader}, "
+                      f"has_quorum={has_quorum}, partners={partner_count}")
+
+                for k, v in status.items():
+                    if 'partner_node_status_server_' in k:
+                        print(f"    [DEBUG] {k} => {v}")
+            else:
+                print(f"[DEBUG] Node {node_id} => No status yet.")
+
+    t = threading.Thread(target=debug_print_cluster, daemon=True)
+    t.start()
     
     # Create gRPC server
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))

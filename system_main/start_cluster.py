@@ -103,15 +103,20 @@ def main():
     print("\nPress Ctrl+C to stop the cluster...")
     
     # Keep the cluster running until interrupted
+    crashed_set = set()
     try:
         while True:
             time.sleep(1)
-            
-            # Check if any server has crashed
+
             for i, proc in enumerate(running_procs):
+                # If we already reported this server as crashed, skip
+                if i in crashed_set:
+                    continue
+                
                 if proc.poll() is not None:
                     print(f"Warning: Server {i} has crashed (exit code: {proc.returncode})")
-            
+                    crashed_set.add(i)
+
     except KeyboardInterrupt:
         print("\nStopping the cluster...")
 
