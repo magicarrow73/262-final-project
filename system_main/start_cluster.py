@@ -49,7 +49,7 @@ def start_server(server_id, num_servers, host='127.0.0.1', base_port=50051, base
     """
     # Calculate ports for this server
     grpc_port = base_port + server_id
-    raft_port = base_raft_port + server_id
+    raft_port = base_raft_port + server_id * 2
     
     # Generate the list of other servers for Raft consensus
     other_servers = []
@@ -66,10 +66,6 @@ def start_server(server_id, num_servers, host='127.0.0.1', base_port=50051, base
         "--raft-port", str(raft_port),  # Use the unique port
         "--cluster", ",".join(other_servers)
     ]
-    
-    # Add cluster information if there are other servers
-    if other_servers:
-        cmd.extend(["--cluster", ",".join(other_servers)])
     
     # Start the server process
     print(f"Starting server {server_id} on {host}:{grpc_port} (Raft: {host}:{raft_port})")
