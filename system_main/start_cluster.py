@@ -63,7 +63,8 @@ def start_server(server_id, num_servers, host='127.0.0.1', base_port=50051, base
         "--host", host,
         "--port", str(grpc_port),
         "--node-id", str(server_id),
-        "--raft-port", str(base_raft_port),
+        "--raft-port", str(raft_port),  # Use the unique port
+        "--cluster", ",".join(other_servers)
     ]
     
     # Add cluster information if there are other servers

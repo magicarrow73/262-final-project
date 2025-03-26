@@ -16,30 +16,39 @@ class RaftDB(SyncObj):
             appendEntriesUseBatch=True,
             dynamicMembershipChange=True,
             commandsQueueSize=100000,
+            appendEntriesPeriod=0.05,        # Faster heartbeats
+            raftMinTimeout=1.0,             # Must be > 3 * appendEntriesPeriod
+            raftMaxTimeout=2.0,
+            electionTimeout=5.0,            # Increased election timeout
+            connectionRetryDelay=0.5,
+            connectionTimeout=10.0,
+            leaderFallbackTimeout=10.0,      # Increased leader fallback timeout
         )
         super().__init__(self_address, other_addresses, conf)
         
-        # Initialize database connection
-        self._db_path = db_path
-        self._conn = None
-        self._conn_lock = threading.Lock()
+        # Initialize database connection - IMPORTANT: using __ prefix to make non-serialized
+        self.__db_path = db_path
+        self.__conn = None
+        self.__conn_lock = threading.Lock()
+
+        # Replicated state
         self._active_users = {}  # Track active/logged in users
         
         # Initialize the database
-        self._init_db()
+        self.__init_db()
     
-    def _get_connection(self):
+    def __get_connection(self):
         """Get a thread-local database connection"""
-        if self._conn is None:
-            self._conn = sqlite3.connect(self._db_path, check_same_thread=False)
-            self._conn.row_factory = sqlite3.Row
-            self._conn.execute("PRAGMA foreign_keys = ON")
-        return self._conn
+        if self.__conn is None:
+            self.__conn = sqlite3.connect(self.__db_path, check_same_thread=False)
+            self.__conn.row_factory = sqlite3.Row
+            self.__conn.execute("PRAGMA foreign_keys = ON")
+        return self.__conn
     
-    def _init_db(self):
+    def __init_db(self):
         """Initialize the database schema"""
-        c = self._get_connection()
-        with self._conn_lock:
+        c = self.__get_connection()
+        with self.__conn_lock:
             c.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -64,10 +73,10 @@ class RaftDB(SyncObj):
     
     def close(self):
         """Close the database connection"""
-        if self._conn is not None:
-            with self._conn_lock:
-                self._conn.close()
-                self._conn = None
+        if self.__conn is not None:
+            with self.__conn_lock:
+                self.__conn.close()
+                self.__conn = None
     
     # Replicated write operations (will be synchronized through Raft)
     
@@ -75,8 +84,8 @@ class RaftDB(SyncObj):
     def create_user(self, username, password_hash, display_name):
         """Create a new user (replicated operation)"""
         try:
-            with self._conn_lock:
-                c = self._get_connection()
+            with self.__conn_lock:
+                c = self.__get_connection()
                 c.execute("""
                 INSERT INTO users (username, password_hash, display_name)
                 VALUES (?, ?, ?)""", (username, password_hash, display_name))
@@ -93,7 +102,7 @@ class RaftDB(SyncObj):
             return False
         
         user_id = user_row["id"]
-        with self._conn_lock:
+        with self.__conn_lock:
             c = self._get_connection()
             cur = c.cursor()
             cur.execute("DELETE FROM users WHERE id = ?", (user_id,))
@@ -123,8 +132,8 @@ class RaftDB(SyncObj):
         eastern = zoneinfo.ZoneInfo("America/New_York")
         timestamp = datetime.datetime.now(eastern).isoformat()
         
-        with self._conn_lock:
-            c = self._get_connection()
+        with self.__conn_lock:
+            c = self.__get_connection()
             cur = c.cursor()
             cur.execute("""
                 INSERT INTO messages (sender_id, receiver_id, content, timestamp, read_status)
@@ -140,8 +149,8 @@ class RaftDB(SyncObj):
             return False
         
         receiver_id = user_row["id"]
-        with self._conn_lock:
-            c = self._get_connection()
+        with self.__conn_lock:
+            c = self.__get_connection()
             cur = c.cursor()
             cur.execute("""
                 UPDATE messages
@@ -158,8 +167,8 @@ class RaftDB(SyncObj):
             return False
         
         user_id = user_row["id"]
-        with self._conn_lock:
-            c = self._get_connection()
+        with self.__conn_lock:
+            c = self.__get_connection()
             cur = c.cursor()
             cur.execute("""
                 DELETE FROM messages
@@ -188,8 +197,8 @@ class RaftDB(SyncObj):
     
     def get_user_by_username(self, username):
         """Get a user by username (read-only operation)"""
-        with self._conn_lock:
-            c = self._get_connection()
+        with self.__conn_lock:
+            c = self.__get_connection()
             cur = c.cursor()
             cur.execute("SELECT * FROM users WHERE username = ?", (username,))
             return cur.fetchone()
@@ -197,8 +206,8 @@ class RaftDB(SyncObj):
     def list_users(self, pattern="*"):
         """List users matching a pattern (read-only operation)"""
         sql_pattern = pattern.replace("*", "%").replace("?", "_")
-        with self._conn_lock:
-            c = self._get_connection()
+        with self.__conn_lock:
+            c = self.__get_connection()
             cur = c.cursor()
             cur.execute("SELECT username, display_name FROM users WHERE username LIKE ?", (sql_pattern,))
             rows = cur.fetchall()
@@ -230,8 +239,8 @@ class RaftDB(SyncObj):
         
         base_query += " ORDER BY messages.timestamp DESC"
         
-        with self._conn_lock:
-            c = self._get_connection()
+        with self.__conn_lock:
+            c = self.__get_connection()
             cur = c.cursor()
             
             if limit is not None and isinstance(limit, int) and limit > 0:
@@ -249,8 +258,8 @@ class RaftDB(SyncObj):
             return 0
         
         receiver_id = user_row["id"]
-        with self._conn_lock:
-            c = self._get_connection()
+        with self.__conn_lock:
+            c = self.__get_connection()
             cur = c.cursor()
             cur.execute("""
                 SELECT COUNT(*) AS cnt
