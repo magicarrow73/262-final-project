@@ -263,9 +263,9 @@ class FaultTolerantTkClientGRPC:
             display = disp_entry.get()
             w.destroy()
 
-            if not self.connect():
-                self.log("[ERROR] Could not connect to any server")
-                return
+            # if not self.connect():
+            #     self.log("[ERROR] Could not connect to any server")
+            #     return
 
             hashed_pw = hash_password(password)
             req = chat_pb2.CreateUserRequest(
@@ -304,9 +304,9 @@ class FaultTolerantTkClientGRPC:
             password = pass_entry.get()
             w.destroy()
 
-            if not self.connect():
-                self.log("[ERROR] Could not connect to any server")
-                return
+            # if not self.connect():
+            #     self.log("[ERROR] Could not connect to any server")
+            #     return
 
             hashed_pw = hash_password(password)
             req = chat_pb2.LoginRequest(username=username, hashed_password=hashed_pw)
@@ -341,9 +341,9 @@ class FaultTolerantTkClientGRPC:
             w.destroy()
             self.stop_subscription_thread()
 
-            if not self.connect():
-                self.log("[ERROR] Could not connect to any server")
-                return
+            # if not self.connect():
+            #     self.log("[ERROR] Could not connect to any server")
+            #     return
 
             req = chat_pb2.LogoutRequest(username=self.current_user)
             req_size = len(req.SerializeToString())
@@ -351,8 +351,8 @@ class FaultTolerantTkClientGRPC:
                 resp = self.try_rpc(self.stub.Logout, req)
                 resp_size = len(resp.SerializeToString())
                 log_data_usage("Logout", req_size, resp_size)
-
                 self.log(f"[{resp.status.upper()}] {resp.message}")
+                
                 if resp.status == "success":
                     self.current_user = None
             except Exception as e:
@@ -383,9 +383,9 @@ class FaultTolerantTkClientGRPC:
             content = msg_entry.get()
             w.destroy()
 
-            if not self.connect():
-                self.log("[ERROR] Could not connect to any server")
-                return
+            # if not self.connect():
+            #     self.log("[ERROR] Could not connect to any server")
+            #     return
 
             req = chat_pb2.SendMessageRequest(
                 sender=self.current_user,
@@ -430,9 +430,9 @@ class FaultTolerantTkClientGRPC:
             """Lists users with retry logic."""
             pat = pattern_entry.get().strip() or "*"
 
-            if not self.connect():
-                self.log("[ERROR] Could not connect to any server")
-                return
+            # if not self.connect():
+            #     self.log("[ERROR] Could not connect to any server")
+            #     return
 
             req = chat_pb2.ListUsersRequest(username=self.current_user, pattern=pat)
             req_size = len(req.SerializeToString())
@@ -483,9 +483,9 @@ class FaultTolerantTkClientGRPC:
                     self.log("[ERROR] Invalid integer for limit.")
                     return
 
-            if not self.connect():
-                self.log("[ERROR] Could not connect to any server")
-                return
+            # if not self.connect():
+            #     self.log("[ERROR] Could not connect to any server")
+            #     return
 
             req = chat_pb2.ReadMessagesRequest(
                 username=self.current_user,
@@ -535,9 +535,9 @@ class FaultTolerantTkClientGRPC:
                     self.log("[ERROR] IDs must be numeric.")
                     return
 
-            if not self.connect():
-                self.log("[ERROR] Could not connect to any server")
-                return
+            # if not self.connect():
+            #     self.log("[ERROR] Could not connect to any server")
+            #     return
 
             req = chat_pb2.DeleteMessagesRequest(
                 username=self.current_user,
@@ -570,9 +570,9 @@ class FaultTolerantTkClientGRPC:
             w.destroy()
             self.stop_subscription_thread()
 
-            if not self.connect():
-                self.log("[ERROR] Could not connect to any server")
-                return
+            # if not self.connect():
+            #     self.log("[ERROR] Could not connect to any server")
+            #     return
 
             req = chat_pb2.DeleteUserRequest(username=self.current_user)
             req_size = len(req.SerializeToString())
