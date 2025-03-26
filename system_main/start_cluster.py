@@ -49,7 +49,7 @@ def start_server(server_id, num_servers, host='127.0.0.1', base_port=50051, base
     """
     # Calculate ports for this server
     grpc_port = base_port + server_id
-    raft_port = base_raft_port + server_id * 2
+    raft_port = base_raft_port + server_id
     
     # Generate the list of other servers for Raft consensus
     other_servers = []
@@ -78,7 +78,7 @@ def start_server(server_id, num_servers, host='127.0.0.1', base_port=50051, base
 def main():
     """Main entry point to start a cluster."""
     parser = argparse.ArgumentParser(description="Start a cluster of fault-tolerant chat servers")
-    parser.add_argument("--servers", type=int, default=3, help="Number of servers to start")
+    parser.add_argument("--servers", type=int, default=5, help="Number of servers to start")
     parser.add_argument("--host", default="127.0.0.1", help="Host to bind servers to")
     parser.add_argument("--base-port", type=int, default=50051, help="Base port for gRPC servers")
     parser.add_argument("--base-raft-port", type=int, default=50100, help="Base port for Raft consensus")

@@ -85,70 +85,12 @@ class FaultTolerantTkClientGRPC:
         tk.Button(self.btn_frame, text="Delete Msg", command=self.delete_msg_dialog).pack(side=tk.LEFT)
         tk.Button(self.btn_frame, text="Delete Account", command=self.delete_account).pack(side=tk.LEFT)
 
-    # def connect(self):
-    #     """
-    #     Establishes a gRPC channel to a server, with retry and failover logic.
-    #     Returns True if connection succeeds, False otherwise.
-    #     """
-    #     with self.retry_lock:
-    #         if self.channel:
-    #             try:
-    #                 self.channel.close()
-    #             except:
-    #                 pass
-    #             self.channel = None
-    #             self.stub = None
-
-    #         # Get servers sorted by health
-    #         sorted_servers = sorted(self.server_list, key=lambda s: self.server_health[s])
-    
-    #         for server_addr in sorted_servers:
-    #             try:
-    #                 self.log(f"Connecting to server at {server_addr}...")
-
-    #                 self.channel = grpc.insecure_channel(
-    #                     server_addr,
-    #                     options=[
-    #                         ('grpc.enable_retries', 1),
-    #                         ('grpc.max_receive_message_length', 10 * 1024 * 1024),
-    #                         ('grpc.keepalive_time_ms', 10000),
-    #                         ('grpc.keepalive_timeout_ms', 5000),
-    #                         ('grpc.keepalive_permit_without_calls', 1),
-    #                         ('grpc.http2.max_pings_without_data', 0),
-    #                         ('grpc.http2.min_time_between_pings_ms', 10000),
-    #                         ('grpc.http2.min_ping_interval_without_data_ms', 5000)
-    #                     ]
-    #                 )
-
-
-    #                 self.stub = chat_pb2_grpc.ChatServiceStub(self.channel)
-    #                 request = chat_pb2.ListUsersRequest(username="test_connection", pattern="*")
-    #                 try:
-    #                     self.stub.ListUsers(request, timeout=2)
-    #                 except grpc.RpcError as e:
-    #                     if "not logged in" not in e.details():
-    #                         pass
-    #                     else:
-    #                         raise
-                    
-    #                 # Connection successful
-    #                 self.current_server_idx = self.server_list.index(server_addr)
-    #                 self.server_health[server_addr] = max(0, self.server_health[server_addr] - 1)
-    #                 self.status_label.config(text=f"Connected to {server_addr}", fg="green")
-    #                 return True
-                    
-    #             except Exception as e:
-    #                 self.log(f"Failed to connect to {server_addr}: {str(e)}")
-    #                 self.server_health[server_addr] += 1 
-    #                 continue
-                    
-    #         # All servers failed
-    #         self.status_label.config(text="Disconnected - All servers unavailable", fg="red")
-    #         return False
-
     def connect(self):
-        """Establishes a gRPC channel with server stickiness for authentication."""
-        # Always clean up existing channel
+        """
+        Establish a new gRPC channel and stub by trying the available servers in order.
+        Closes any existing channel before attempting to reconnect.
+        """
+        # Always close any existing channel
         if self.channel:
             try:
                 self.channel.close()
@@ -156,120 +98,84 @@ class FaultTolerantTkClientGRPC:
                 pass
             self.channel = None
             self.stub = None
-        
+
+        # Prioritize the previously successful (preferred) server if available
         servers_to_try = list(range(len(self.server_list)))
-        
-        # If we have a preferred server (where login succeeded), try it first
         if hasattr(self, 'preferred_server_idx') and self.preferred_server_idx is not None:
-            # Move preferred server to front of the list
             if self.preferred_server_idx in servers_to_try:
                 servers_to_try.remove(self.preferred_server_idx)
                 servers_to_try.insert(0, self.preferred_server_idx)
-        
-        # Try each server in our prioritized order
+
         for idx in servers_to_try:
             server_addr = self.server_list[idx]
-            self.log(f"Attempting server {idx}: {server_addr}")
-            
+            self.log(f"Attempting to connect to server {idx}: {server_addr}")
             try:
-                # Create new channel
+                # Create a new channel with basic retry enabled
                 self.channel = grpc.insecure_channel(
                     server_addr,
                     options=[('grpc.enable_retries', 1)]
                 )
-                
-                # Create stub
                 self.stub = chat_pb2_grpc.ChatServiceStub(self.channel)
-                
-                # Test connection - will fail quickly if server is down
-                try:
-                    ping_request = chat_pb2.ListUsersRequest(username="ping", pattern="*")
-                    self.stub.ListUsers(ping_request, timeout=1)
-                    self.log(f"Successfully connected to server {idx}: {server_addr}")
-                except grpc.RpcError as e:
-                    # Check if it's just an authentication error (server is up)
-                    if "not logged in" in str(e):
-                        self.log(f"Server {idx} is up (requires auth)")
-                    else:
-                        # Other error means server issues - try next server
-                        raise
-                
-                # Connection successful
+                # Send a simple ping request to test connectivity
+                ping_request = chat_pb2.ListUsersRequest(username="ping", pattern="*")
+                self.stub.ListUsers(ping_request, timeout=3)
+                self.log(f"Connected to server {idx}: {server_addr}")
                 self.current_server_idx = idx
+                self.status_label.config(text=f"Connected to {server_addr}", fg="green")
                 return True
-                
-            except Exception as e:
-                self.log(f"Server {idx} failed: {str(e)}")
-                
-                # Close failed channel
+            except grpc.RpcError as e:
+                self.log(f"Connection failed: {e.details() or str(e)}")
                 if self.channel:
                     try:
                         self.channel.close()
                     except:
                         pass
-                    self.channel = None
-                    self.stub = None
-        
-        # All servers failed
-        self.log(f"ERROR: All servers are unavailable")
+                self.channel = None
+                self.stub = None
+
+        self.log("ERROR: All servers are unavailable")
+        self.status_label.config(text="Disconnected", fg="red")
         return False
 
     def try_rpc(self, rpc_func, *args, **kwargs):
         """
-        Try to execute an RPC call with automatic retry and failover.
-        
-        Parameters:
-        -----------
-        rpc_func : function
-            The RPC function to call
-        *args, **kwargs:
-            Arguments to pass to the RPC function
-        
-        Returns:
-        --------
-        The result of the RPC call or raises an exception if all retries fail
+        Wraps an RPC call with automatic retry and failover logic using exponential backoff.
+        If the channel or stub is not active, it attempts to reconnect.
         """
         retries = 0
+        delay = 0.5
         last_exception = None
-        
+
         while retries < self.max_retries:
             try:
                 if self.channel is None or self.stub is None:
                     if not self.connect():
                         raise Exception("No servers available")
-                
-                # Try the RPC call
+                    
+                # Attempt the RPC call
                 return rpc_func(*args, **kwargs)
-                
+            
             except grpc.RpcError as e:
                 last_exception = e
-                error_msg = e.details() if hasattr(e, 'details') else str(e)
-
-                if "not logged in" in error_msg.lower():
-                    # We can't re-authenticate, so we just inform the user
-                    self.log(f"[ERROR] Not logged in. Please log in again.")
-                    raise  # Don't retry auth errors
-
+                # Only retry on connection-related errors
                 if e.code() in [grpc.StatusCode.UNAVAILABLE, grpc.StatusCode.DEADLINE_EXCEEDED]:
+                    self.log(f"RPC error ({e.code()}): {e.details() or str(e)}. Reconnecting...")
+                    self.channel = None
+                    self.stub = None
+                    time.sleep(delay)
+
                     retries += 1
-                    self.log(f"Connection error, reconnecting... ({retries}/{self.max_retries})")
-                    
-                    # Try to connect to another server
-                    if not self.connect():
-                        self.log("Failed to connect to any server")
-                        time.sleep(1)  # Brief delay before next attempt
-                    
+                    delay = min(delay * 2, 30)
                     continue
-                    
-                # For other errors, just raise
-                raise
-        
-        # Max retries exceeded
+                else:
+                    raise e
+
         if last_exception:
             raise last_exception
         else:
+            # Shouldn't happen logically, but just in case
             raise Exception(f"Failed after {self.max_retries} retries")
-
+    
     def log(self, msg):
         """Logs a message to the GUI's text area."""
         self.text_area.config(state='normal')
@@ -280,52 +186,47 @@ class FaultTolerantTkClientGRPC:
     # ------------------ Subscription / Push Handling ------------------ #
 
     def start_subscription_thread(self):
-        """Starts a background thread for streaming messages with fault tolerance."""
+        """
+        Starts a background thread that continuously subscribes for incoming messages.
+        If the stream fails (e.g., due to connection issues), it will attempt to reconnect
+        using exponential backoff.
+        """
         if not self.current_user:
             return
         self.subscribe_stop_event.clear()
 
         def run_stream():
-            """Continuously reads from Subscribe with automatic reconnection."""
             consecutive_failures = 0
-            last_connected_server = self.current_server_idx
             while not self.subscribe_stop_event.is_set():
                 try:
-                    # Check if we switched servers since last attempt
-                    if last_connected_server != self.current_server_idx:
-                        # Server changed - might need to re-login which we can't do
-                        # Just note the new server and try with it
-                        last_connected_server = self.current_server_idx
-                        self.log(f"Server changed - subscription will use server {last_connected_server}")
-                    
+                    # Ensure there is an active connection before subscribing
+                    if self.channel is None or self.stub is None:
+                        self.log("No active connection for subscription. Reconnecting...")
+                        if not self.connect():
+                            raise Exception("Unable to reconnect for subscription")
                     request = chat_pb2.SubscribeRequest(username=self.current_user)
                     stream_iter = self.stub.Subscribe(request)
-
+                    # Reset failure count on successful connection
                     consecutive_failures = 0
-                    
+
                     for incoming in stream_iter:
                         if self.subscribe_stop_event.is_set():
                             break
-                        sender = incoming.sender
-                        content = incoming.content
-                        self.log(f"[New Message] from={sender}: {content}")
-                        
+                        self.log(f"[New Message] from={incoming.sender}: {incoming.content}")
+
                 except grpc.RpcError as e:
-                    if self.subscribe_stop_event.is_set():
-                        break
-                        
-                    if consecutive_failures < 3:
-                        self.log(f"[Subscription interrupted]: {e.details()}")
-                        
-                    # Exponential backoff for reconnection attempts
+                    self.log(f"Subscription RPC error: {e.details() if hasattr(e, 'details') else str(e)}")
                     consecutive_failures += 1
-                    delay = min(2 ** consecutive_failures, 30)  # Cap at 30 seconds
+                    delay = min(2 ** consecutive_failures, 30)
                     time.sleep(delay)
-                    
-                    # Don't spam reconnect attempts
-                    if consecutive_failures % 3 == 0:
-                        self.connect()
-                        last_connected_server = self.current_server_idx
+                    self.connect()  # attempt to reconnect after failure
+
+                except Exception as ex:
+                    self.log(f"Subscription error: {ex}")
+                    consecutive_failures += 1
+                    delay = min(2 ** consecutive_failures, 30)
+                    time.sleep(delay)
+                    self.connect()
 
         self.subscribe_thread = threading.Thread(target=run_stream, daemon=True)
         self.subscribe_thread.start()

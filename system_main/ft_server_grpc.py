@@ -96,20 +96,23 @@ class FaultTolerantChatServicer(chat_pb2_grpc.ChatServiceServicer):
             self.raft_db.waitReady()
 
         # Create user (this is a replicated operation)
-        success = self.raft_db.create_user(username, hashed_password, display_name)
+        success = self.raft_db.create_user(username, hashed_password, display_name, sync=True, timeout=5.0)
         
-        if success is None or success:
-            resp = chat_pb2.CreateUserResponse(
-                status="success",
-                message="User created successfully.",
-                username=username
-            )
-        else:
+        if not success:
             resp = chat_pb2.CreateUserResponse(
                 status="error",
-                message="Could not create user (DB error?).",
+                message="Could not create user (DB error or timeout).",
                 username=username
             )
+            resp_size = len(resp.SerializeToString())
+            log_data_usage("CreateUser", req_size, resp_size)
+            return resp
+
+        resp = chat_pb2.CreateUserResponse(
+            status="success",
+            message="User created successfully.",
+            username=username
+        )
 
         resp_size = len(resp.SerializeToString())
         log_data_usage("CreateUser", req_size, resp_size)
@@ -121,6 +124,21 @@ class FaultTolerantChatServicer(chat_pb2_grpc.ChatServiceServicer):
 
         username = request.username
         hashed_password = request.hashed_password
+
+        # 1) DEBUG: Check Raft status
+        status = self.raft_db.getStatus()
+        if status is not None:
+            role = status.get('role')
+            leader = status.get('leader')
+            print(f"[DEBUG] getStatus() => role={role}, known_leader={leader}")
+        else:
+            print("[DEBUG] getStatus() returned None (node might not be ready)")
+
+        # 2) Check if cluster is 'ready'
+        if not self.raft_db.isReady():
+            print("[DEBUG] Database not fully ready yet. Waiting...")
+            self.raft_db.waitReady()
+            print("[DEBUG] Done waiting for readiness")
 
         # Get user (read-only operation)
         user = self.raft_db.get_user_by_username(username)
@@ -145,32 +163,43 @@ class FaultTolerantChatServicer(chat_pb2_grpc.ChatServiceServicer):
             resp_size = len(resp.SerializeToString())
             log_data_usage("Login", req_size, resp_size)
             return resp
-
-        # Login user (replicated operation)
-        if not self.raft_db.isReady():
-            # This will block until ready
-            self.raft_db.waitReady()
-
-        # Execute the command
-        success = self.raft_db.user_login(username)
-
-        # Get unread message count (read-only operation)
-        unread_count = self.raft_db.get_num_unread_messages(username)
         
-        if success is None or success:
+        # ---------------------------------------------------------
+        # (A) Synchronous Raft replication with a 5s timeout
+        # ---------------------------------------------------------
+        result = self.raft_db.user_login(username, sync=True, timeout=10.0)
+        if result is None:
+            print("[DEBUG] user_login(...) returned None => possibly forwarding or replication timed out.")
+            # Possibly we're on a follower and didn't get the final result,
+            # or replication took >5s. Let's do a fallback read:
+            time.sleep(0.5)
+            if self.raft_db.is_user_active(username):
+                # The cluster eventually marked user as active
+                print("[DEBUG] Fallback read: user is actually active now, so let's treat it as success.")
+                result = True
+            else:
+                print("[DEBUG] Fallback read: user still inactive, final failure.")
+                result = None  # Confirmed not active
+
+        if not result:
+            # This means replication timed out or failed
             resp = chat_pb2.LoginResponse(
-                status="success",
-                message="Login successful.",
-                unread_count = unread_count,
+                status="error",
+                message="Login replication failed or timed out.",
+                unread_count=0,
                 username=username
             )
-        else:
-            resp = chat_pb2.LoginResponse(
-                status="partial success",
-                message="Login partially successful (some servers may not recognize your login).",
-                unread_count = unread_count,
-                username=username
-            )
+            resp_size = len(resp.SerializeToString())
+            log_data_usage("Login", req_size, resp_size)
+            return resp
+
+        unread_count = self.raft_db.get_num_unread_messages(username)
+        resp = chat_pb2.LoginResponse(
+            status="success",
+            message="Login successful.",
+            unread_count=unread_count,
+            username=username
+        )
         
         resp_size = len(resp.SerializeToString())
         log_data_usage("Login", req_size, resp_size)
@@ -197,22 +226,21 @@ class FaultTolerantChatServicer(chat_pb2_grpc.ChatServiceServicer):
             self.raft_db.waitReady()
         
         # Logout user (replicated operation)
-        success = self.raft_db.user_logout(username)
-        
-        # Remove from subscribers (local operation)
-        self.remove_subscriber(username)
-        
-        if success is None or success:
-            resp = chat_pb2.LogoutResponse(
-                status="success",
-                message=f"User {username} is now logged out."
-            )
-        else:
-            resp = chat_pb2.LogoutResponse(
-                status="partial_success",
-                message=f"User {username} logged out locally, but some servers may not have updated yet."
-            )
+        success = self.raft_db.user_logout(username,sync=True,timeout=5.0)
 
+        if not success:
+            resp = chat_pb2.LogoutResponse(
+                status="error",
+                message="Logout replication failed or timed out."
+            )
+            return resp
+
+        self.remove_subscriber(username)
+        resp = chat_pb2.LogoutResponse(
+            status="success",
+            message=f"User {username} is now logged out."
+        )
+        
         resp_size = len(resp.SerializeToString())
         log_data_usage("Logout", req_size, resp_size)
         return resp
@@ -275,21 +303,25 @@ class FaultTolerantChatServicer(chat_pb2_grpc.ChatServiceServicer):
             self.raft_db.waitReady()
 
         # Send message (replicated operation)
-        success = self.raft_db.create_message(sender, receiver, content)
-        
-        if success is None or success:
-            # Push notification (local operation)
-            self.push_incoming_message(receiver, sender, content)
-            
-            resp = chat_pb2.SendMessageResponse(
-                status="success",
-                message="Message sent."
-            )
-        else:
+        success = self.raft_db.create_message(
+            sender, receiver, content,
+            sync=True, timeout=5.0
+        )
+
+        if not success:
             resp = chat_pb2.SendMessageResponse(
                 status="error",
-                message="Could not send message. (Maybe receiver does not exist?)"
+                message="Could not send message (DB error or timeout)."
             )
+            resp_size = len(resp.SerializeToString())
+            log_data_usage("SendMessage", req_size, resp_size)
+            return resp
+        
+        self.push_incoming_message(receiver, sender, content)
+        resp = chat_pb2.SendMessageResponse(
+            status="success",
+            message="Message sent."
+        )
         
         resp_size = len(resp.SerializeToString())
         log_data_usage("SendMessage", req_size, resp_size)
@@ -324,9 +356,11 @@ class FaultTolerantChatServicer(chat_pb2_grpc.ChatServiceServicer):
         # Mark messages as read (replicated operation)
         all_marked = True
         for m in msgs_db:
-            result = self.raft_db.mark_message_read(m["id"], username)
-            # Check if the operation failed (not None and not True)
-            if result is not None and not result:
+            result = self.raft_db.mark_message_read(
+                m["id"], username,
+                sync=True, timeout=5.0
+            )
+            if not result:
                 all_marked = False
 
         # Build response
@@ -380,8 +414,11 @@ class FaultTolerantChatServicer(chat_pb2_grpc.ChatServiceServicer):
         # Delete messages (replicated operations)
         deleted_count = 0
         for mid in request.message_ids:
-            result = self.raft_db.delete_message(mid, username)
-            if result is None or result:
+            result = self.raft_db.delete_message(
+                mid, username,
+                sync=True, timeout=5.0
+            )
+            if result:
                 deleted_count += 1
 
         if deleted_count == 0:
@@ -422,21 +459,24 @@ class FaultTolerantChatServicer(chat_pb2_grpc.ChatServiceServicer):
             self.raft_db.waitReady()
 
         # Delete user (replicated operation)
-        success = self.raft_db.delete_user(username)
-        
-        if success is None or success:
-            # Remove from subscribers (local operation)
-            self.remove_subscriber(username)
-            
-            resp = chat_pb2.DeleteUserResponse(
-                status="success",
-                message=f"User {username} deleted."
-            )
-        else:
+        success = self.raft_db.delete_user(
+            username,
+            sync=True,
+            timeout=5.0
+        )
+
+        if not success:
             resp = chat_pb2.DeleteUserResponse(
                 status="error",
-                message="User not found or DB error."
+                message="User not found or DB error (or timed out)."
             )
+            return resp
+        
+        self.remove_subscriber(username)
+        resp = chat_pb2.DeleteUserResponse(
+            status="success",
+            message=f"User {username} deleted."
+        )
 
         resp_size = len(resp.SerializeToString())
         log_data_usage("DeleteUser", req_size, resp_size)
@@ -497,6 +537,9 @@ def run_server(host, port, node_id, raft_port, other_nodes=None):
     
     # Set up database with unique path for this node
     db_path = f"chat_node_{node_id}.db"
+
+    print(f"[DEBUG] Starting node {node_id} at {host}:{port}, raft={host}:{raft_port}")
+    print(f"[DEBUG] Other nodes: {other_nodes}")
     
     # Create RaftDB instance
     raft_db = RaftDB(self_addr, other_nodes or [], db_path)
@@ -515,6 +558,9 @@ def run_server(host, port, node_id, raft_port, other_nodes=None):
     server_addr = f"{host}:{port}"
     server.add_insecure_port(server_addr)
     server.start()
+
+    print(f"[DEBUG] Node {node_id} started. Checking status...")
+    print(f"[DEBUG] getStatus() => {raft_db.getStatus()}")
     
     print(f"Node {node_id} started at {server_addr} (Raft: {self_addr})")
     
@@ -552,13 +598,16 @@ def main():
     other_nodes = []
     if args.cluster:
         other_nodes = args.cluster.split(",")
+
+    
+    time.sleep(5)
     
     # Run the server
     run_server(
         args.host, 
         args.port,
         args.node_id,
-        args.raft_port + args.node_id,
+        args.raft_port,
         other_nodes
     )
 

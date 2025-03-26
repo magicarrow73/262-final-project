@@ -103,7 +103,7 @@ class RaftDB(SyncObj):
         
         user_id = user_row["id"]
         with self.__conn_lock:
-            c = self._get_connection()
+            c = self.__get_connection()
             cur = c.cursor()
             cur.execute("DELETE FROM users WHERE id = ?", (user_id,))
             deleted_count = cur.rowcount
