@@ -1,4 +1,4 @@
-Our documentation is below.
+Group 10 (Kevin Cong, Russell Li)
 ---
 
 # gRPC Fault-Tolerant Chat System
