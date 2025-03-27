@@ -115,7 +115,7 @@ class TestFaultToleranceRobust(unittest.TestCase):
         cls.channel.close()
         shutil.rmtree(cls.temp_dir)
 
-    def test_persistence_before_faults(self):
+    def test_persistence(self):
         """
         Test persistence by creating a user and sending a self-message.
         Then, without killing any nodes, verify that the data persists.
