@@ -21,7 +21,14 @@ from utils import hash_password
 CLIENT_LOG_FILE = "client_data_usage.log"
 
 def log_data_usage(method_name: str, request_size: int, response_size: int):
-    """Logs data usage to a file."""
+    """
+    Log data usage (request size and response size) for each gRPC call
+    to a local CSV file for monitoring or analytics.
+
+    :param method_name: The name of the gRPC method (e.g., "CreateUser", "Login").
+    :param request_size: The byte size of the serialized request message.
+    :param response_size: The byte size of the serialized response message.
+    """
     file_exists = os.path.exists(CLIENT_LOG_FILE)
     if not file_exists:
         with open(CLIENT_LOG_FILE, "w") as f:
@@ -33,17 +40,18 @@ def log_data_usage(method_name: str, request_size: int, response_size: int):
 class FaultTolerantTkClientGRPC:
     """
     A Tkinter-based gRPC client with fault tolerance capabilities.
-    Can detect server failures and reconnect to alternative servers.
+    
+    This client can detect server failures and automatically reconnect
+    to alternative servers in a list. It provides a simple GUI interface
+    to perform chat-related operations such as creating accounts, logging in,
+    sending/reading messages, etc.
     """
 
     def __init__(self, server_list):
         """
-        Constructor for the fault-tolerant client.
-        
-        Parameters:
-        -----------
-        server_list : list
-            List of server addresses in the format ["host:port", ...]
+        Initialize the fault-tolerant client.
+
+        :param server_list: List of server addresses in the format ["host:port", ...].
         """
         self.server_list = server_list
         self.current_server_idx = 0
@@ -87,8 +95,10 @@ class FaultTolerantTkClientGRPC:
 
     def connect(self):
         """
-        Establish a new gRPC channel and stub by trying the available servers in order.
+        Establish a new gRPC channel and stub by trying available servers in order.
         Closes any existing channel before attempting to reconnect.
+
+        :return: True if the connection succeeded (channel+stub created), False otherwise.
         """
         # Always close any existing channel
         if self.channel:
@@ -139,8 +149,15 @@ class FaultTolerantTkClientGRPC:
 
     def try_rpc(self, rpc_func, *args, **kwargs):
         """
-        Wraps an RPC call with automatic retry and failover logic using exponential backoff.
-        If the channel or stub is not active, it attempts to reconnect.
+        Execute an RPC call with automatic retry and failover logic using exponential backoff.
+
+        - If the channel/stub is inactive, it attempts to reconnect.
+        - Retries on connection-related errors (e.g., UNAVAILABLE) up to self.max_retries times.
+
+        :param rpc_func: The RPC function pointer (e.g., self.stub.CreateUser).
+        :param args: Positional arguments for the RPC function.
+        :param kwargs: Keyword arguments for the RPC function.
+        :return: The result of the successful RPC call, or raises the last exception if it fails.
         """
         retries = 0
         delay = 0.5
@@ -180,7 +197,11 @@ class FaultTolerantTkClientGRPC:
             raise Exception(f"Failed after {self.max_retries} retries")
     
     def log(self, msg):
-        """Logs a message to the GUI's text area."""
+        """
+        Log a message to the GUI text area.
+
+        :param msg: The string message to display.
+        """
         self.text_area.config(state='normal')
         self.text_area.insert(tk.END, msg + "\n")
         self.text_area.config(state='disabled')
@@ -190,15 +211,19 @@ class FaultTolerantTkClientGRPC:
 
     def start_subscription_thread(self):
         """
-        Starts a background thread that continuously subscribes for incoming messages.
-        If the stream fails (e.g., due to connection issues), it will attempt to reconnect
-        using exponential backoff.
+        Start a background thread that continuously subscribes for incoming messages
+        from the server. If the stream is broken, it attempts to reconnect using
+        exponential backoff until the user logs out or the client shuts down.
         """
         if not self.current_user:
             return
         self.subscribe_stop_event.clear()
 
         def run_stream():
+            """
+            Continuously subscribe for incoming messages from the server.
+            Reconnects automatically on stream failure.
+            """
             consecutive_failures = 0
             while not self.subscribe_stop_event.is_set():
                 try:
@@ -235,7 +260,9 @@ class FaultTolerantTkClientGRPC:
         self.subscribe_thread.start()
 
     def stop_subscription_thread(self):
-        """Signals the subscription thread to stop."""
+        """
+        Signal the subscription thread to stop and wait briefly for it to join.
+        """
         self.subscribe_stop_event.set()
         if self.subscribe_thread:
             self.subscribe_thread.join(timeout=2)
@@ -243,7 +270,10 @@ class FaultTolerantTkClientGRPC:
     # ------------------ Dialog & Command Implementations ------------------ #
 
     def create_account_dialog(self):
-        """Opens a dialog to create a new user account with fault tolerance."""
+        """
+        Open a dialog to create a new user account. 
+        Gathers username, password, and display name, then calls CreateUser via gRPC.
+        """
         w = tk.Toplevel(self.root)
         w.title("Create Account")
 
@@ -289,7 +319,10 @@ class FaultTolerantTkClientGRPC:
         tk.Button(w, text="OK", command=on_ok).pack()
 
     def login_dialog(self):
-        """Opens a dialog to log in an existing user with fault tolerance."""
+        """
+        Open a dialog to log in an existing user account.
+        On success, starts the subscription thread for incoming messages.
+        """
         w = tk.Toplevel(self.root)
         w.title("Login")
 
@@ -330,7 +363,10 @@ class FaultTolerantTkClientGRPC:
         tk.Button(w, text="OK", command=on_ok).pack()
 
     def logout_dialog(self):
-        """Opens a dialog to confirm logout with fault tolerance."""
+        """
+        Open a dialog to confirm logout. On confirmation, sends Logout request
+        and stops the subscription thread.
+        """
         if not self.current_user:
             self.log("[ERROR] No user is currently logged in.")
             return
@@ -364,7 +400,10 @@ class FaultTolerantTkClientGRPC:
         tk.Button(w, text="OK", command=on_ok).pack()
 
     def send_dialog(self):
-        """Opens a dialog to send a message with fault tolerance."""
+        """
+        Open a dialog to send a new message. Requests receiver username and content,
+        then calls SendMessage via gRPC.
+        """
         if not self.current_user:
             self.log("[ERROR] You are not logged in.")
             return
@@ -408,7 +447,10 @@ class FaultTolerantTkClientGRPC:
         tk.Button(w, text="OK", command=on_ok).pack()
 
     def list_accounts_dialog(self):
-        """Opens a dialog to list accounts with fault tolerance."""
+        """
+        Open a dialog to list user accounts matching a wildcard pattern (default "*").
+        Displays results in a Listbox and also logs them to the main text area.
+        """
         if not self.current_user:
             self.log("[ERROR] You are not logged in.")
             return
@@ -456,7 +498,10 @@ class FaultTolerantTkClientGRPC:
         tk.Button(w, text="OK", command=on_ok).pack()
 
     def read_messages_dialog(self):
-        """Opens a dialog to read messages with fault tolerance."""
+        """
+        Open a dialog to retrieve messages for the current user (unread or all, up to a limit).
+        Each retrieved message is automatically marked as read.
+        """
         if not self.current_user:
             self.log("[ERROR] You are not logged in.")
             return
@@ -510,7 +555,10 @@ class FaultTolerantTkClientGRPC:
         tk.Button(w, text="OK", command=on_ok).pack()
 
     def delete_msg_dialog(self):
-        """Opens a dialog to delete messages with fault tolerance."""
+        """
+        Open a dialog to delete one or more messages by ID. The user must either be
+        the sender or receiver of the message(s) to delete them.
+        """
         if not self.current_user:
             self.log("[ERROR] You are not logged in.")
             return
@@ -559,7 +607,10 @@ class FaultTolerantTkClientGRPC:
         tk.Button(w, text="OK", command=on_ok).pack()
 
     def delete_account(self):
-        """Opens a dialog to confirm account deletion with fault tolerance."""
+        """
+        Open a dialog to confirm deletion of the current user's account.
+        This also deletes all their messages (sent or received).
+        """
         if not self.current_user:
             self.log("[ERROR] You are not logged in.")
             return
@@ -593,7 +644,10 @@ class FaultTolerantTkClientGRPC:
         tk.Button(w, text="OK", command=on_ok).pack()
 
     def run(self):
-        """Start the client with initial connection attempt."""
+        """
+        Start the client application by attempting an initial connection to a server.
+        Then run the Tkinter main loop until the user closes the application.
+        """
         if self.connect():
             self.log("Successfully connected to server")
         else:
@@ -606,7 +660,11 @@ class FaultTolerantTkClientGRPC:
 
 
 def main():
-    """Main entry point with server list configuration."""
+    """
+    Main entry point for the fault-tolerant gRPC Chat Client.
+    Parses command-line arguments for server addresses, then 
+    launches the Tkinter-based GUI.
+    """
     parser = argparse.ArgumentParser(description="Fault-Tolerant gRPC Chat Client")
     parser.add_argument("--servers", default="127.0.0.1:50051,127.0.0.1:50052,127.0.0.1:50053",
                         help="Comma-separated list of server addresses (host:port)")

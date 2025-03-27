@@ -2,7 +2,8 @@
 start_cluster.py
 
 This script provides a convenient way to start a cluster of fault-tolerant
-chat servers either on a single machine or across multiple machines.
+chat servers, either on a single machine or across multiple machines. Each
+server runs as an independent process, using gRPC and Raft for communication.
 """
 
 import sys
@@ -17,7 +18,14 @@ import atexit
 running_procs = []
 
 def cleanup():
-    """Terminate all running server processes on exit."""
+    """
+    Terminate all running server processes on exit.
+
+    This function is registered with atexit, so it is automatically called
+    when the Python interpreter exits, or when the script is interrupted
+    (e.g., via Ctrl+C). It attempts to terminate each server process gracefully,
+    and if that fails, it forces a kill.
+    """
     for proc in running_procs:
         try:
             proc.terminate()
@@ -32,20 +40,16 @@ atexit.register(cleanup)
 
 def start_server(server_id, num_servers, host='127.0.0.1', base_port=50051, base_raft_port=50100):
     """
-    Start a single server in the cluster.
-    
-    Parameters:
-    -----------
-    server_id : int
-        Unique ID for this server
-    num_servers : int
-        Total number of servers in the cluster
-    host : str
-        Host to bind to
-    base_port : int
-        Base port for gRPC servers
-    base_raft_port : int
-        Base port for Raft consensus
+    Start a single server in the cluster as a subprocess.
+
+    :param server_id: An integer ID for this server (unique within the cluster).
+    :param num_servers: The total number of servers in the cluster.
+    :param host: The host/IP address on which the server should listen.
+    :param base_port: The base port number for gRPC servers.
+                      The actual gRPC port for this server is base_port + server_id.
+    :param base_raft_port: The base port number for Raft consensus.
+                           The actual Raft port for this server is base_raft_port + server_id.
+    :return: A string containing the "host:grpc_port" address of this server.
     """
     # Calculate ports for this server
     grpc_port = base_port + server_id
@@ -76,7 +80,15 @@ def start_server(server_id, num_servers, host='127.0.0.1', base_port=50051, base
     return f"{host}:{grpc_port}"
 
 def main():
-    """Main entry point to start a cluster."""
+    """
+    Main entry point to start a cluster of fault-tolerant chat servers.
+
+    This script parses command-line arguments to determine how many servers
+    to start, which host to bind them to, and the base ports for both gRPC
+    and Raft. It then launches each server as a subprocess and monitors
+    them. If any server crashes, it prints a warning message. The user can
+    terminate the entire cluster with Ctrl+C.
+    """
     parser = argparse.ArgumentParser(description="Start a cluster of fault-tolerant chat servers")
     parser.add_argument("--servers", type=int, default=5, help="Number of servers to start")
     parser.add_argument("--host", default="127.0.0.1", help="Host to bind servers to")

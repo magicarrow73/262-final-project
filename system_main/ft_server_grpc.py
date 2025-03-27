@@ -25,7 +25,12 @@ SERVER_LOG_FILE = "server_data_usage.log"
 
 def log_data_usage(method_name: str, request_size: int, response_size: int):
     """
-    Logs data usage (request_size, response_size) to a local file.
+    Log the data usage (request size, response size) for each gRPC call
+    to a local CSV file for analytical or monitoring purposes.
+
+    :param method_name: Name of the gRPC method (e.g. "CreateUser", "Login", etc.).
+    :param request_size: The byte size of the serialized gRPC request.
+    :param response_size: The byte size of the serialized gRPC response.
     """
     file_exists = os.path.exists(SERVER_LOG_FILE)
     if not file_exists:
@@ -38,11 +43,16 @@ def log_data_usage(method_name: str, request_size: int, response_size: int):
 class FaultTolerantChatServicer(chat_pb2_grpc.ChatServiceServicer):
     """
     Implements the ChatService gRPC service methods with fault tolerance
-    through Raft consensus. The server state is replicated across a cluster.
+    through Raft consensus. The server state is replicated across a cluster,
+    ensuring consistency even if some nodes fail.
     """
 
     def __init__(self, raft_db):
-        """Constructor for FaultTolerantChatServicer."""
+        """
+        Constructor for FaultTolerantChatServicer.
+
+        :param raft_db: An instance of RaftDB for replicated state operations.
+        """
         super().__init__()
         self.raft_db = raft_db
         
@@ -51,19 +61,33 @@ class FaultTolerantChatServicer(chat_pb2_grpc.ChatServiceServicer):
         self.subscribers_lock = threading.Lock()
 
     def add_subscriber(self, username):
-        """Creates a subscription queue for a user if not already existing."""
+        """
+        Create a subscription queue for a user if one does not already exist.
+
+        :param username: The username for which to create a subscription queue.
+        """
         with self.subscribers_lock:
             if username not in self.subscribers:
                 self.subscribers[username] = queue.Queue()
 
     def remove_subscriber(self, username):
-        """Removes the subscription queue for a user."""
+        """
+        Remove the subscription queue for a user if it exists.
+
+        :param username: The username whose subscription queue should be removed.
+        """
         with self.subscribers_lock:
             if username in self.subscribers:
                 del self.subscribers[username]
 
     def push_incoming_message(self, receiver_username, sender, content):
-        """Pushes an incoming message into the receiver's subscription queue."""
+        """
+        Push an incoming message into the receiver's subscription queue.
+
+        :param receiver_username: The username of the message receiver.
+        :param sender: The username of the message sender.
+        :param content: The text content of the message.
+        """
         with self.subscribers_lock:
             if receiver_username in self.subscribers:
                 q = self.subscribers[receiver_username]
@@ -72,7 +96,13 @@ class FaultTolerantChatServicer(chat_pb2_grpc.ChatServiceServicer):
     # ------------------ RPC Methods with Data Usage Logging ------------------
 
     def CreateUser(self, request, context):
-        """Creates a new user through the Raft consensus."""
+        """
+        RPC method to create a new user. Enforced via Raft consensus.
+
+        :param request: A CreateUserRequest containing username, hashed_password, and display_name.
+        :param context: gRPC context, can be used for metadata or cancellations.
+        :return: CreateUserResponse indicating success or failure (user exists, DB error, etc.).
+        """
         req_size = len(request.SerializeToString())
 
         username = request.username
@@ -119,7 +149,14 @@ class FaultTolerantChatServicer(chat_pb2_grpc.ChatServiceServicer):
         return resp
 
     def Login(self, request, context):
-        """Logs in an existing user if credentials match."""
+        """
+        RPC method to log in an existing user with hashed password verification.
+        Mark the user as active in the Raft cluster state.
+
+        :param request: A LoginRequest containing username and hashed_password.
+        :param context: gRPC context.
+        :return: LoginResponse indicating success (with unread_count) or failure (error message).
+        """
         req_size = len(request.SerializeToString())
 
         username = request.username
@@ -206,7 +243,13 @@ class FaultTolerantChatServicer(chat_pb2_grpc.ChatServiceServicer):
         return resp
 
     def Logout(self, request, context):
-        """Logs out a user if they are currently active."""
+        """
+        RPC method to log out a currently active user.
+
+        :param request: A LogoutRequest containing the username.
+        :param context: gRPC context.
+        :return: LogoutResponse indicating success or failure.
+        """
         req_size = len(request.SerializeToString())
 
         username = request.username
@@ -246,7 +289,13 @@ class FaultTolerantChatServicer(chat_pb2_grpc.ChatServiceServicer):
         return resp
 
     def ListUsers(self, request, context):
-        """Lists all users matching a given pattern if the user is logged in."""
+        """
+        RPC method to list users that match a given pattern (wildcards allowed).
+
+        :param request: A ListUsersRequest containing username (caller) and pattern.
+        :param context: gRPC context.
+        :return: ListUsersResponse with a list of matching users, or error if caller not logged in.
+        """
         req_size = len(request.SerializeToString())
 
         username = request.username
@@ -281,7 +330,13 @@ class FaultTolerantChatServicer(chat_pb2_grpc.ChatServiceServicer):
         return resp
 
     def SendMessage(self, request, context):
-        """Sends a message from 'sender' to 'receiver' if the sender is logged in."""
+        """
+        RPC method to send a message from sender to receiver.
+
+        :param request: A SendMessageRequest containing sender, receiver, and content.
+        :param context: gRPC context.
+        :return: SendMessageResponse indicating success or failure.
+        """
         req_size = len(request.SerializeToString())
 
         sender = request.sender
@@ -328,7 +383,13 @@ class FaultTolerantChatServicer(chat_pb2_grpc.ChatServiceServicer):
         return resp
 
     def ReadMessages(self, request, context):
-        """Retrieves messages for the current user and marks them as read."""
+        """
+        RPC method to retrieve messages for the current user and mark them as read.
+
+        :param request: A ReadMessagesRequest containing username, only_unread, and limit.
+        :param context: gRPC context.
+        :return: ReadMessagesResponse with a list of messages and status.
+        """
         req_size = len(request.SerializeToString())
 
         username = request.username
@@ -391,7 +452,13 @@ class FaultTolerantChatServicer(chat_pb2_grpc.ChatServiceServicer):
         return resp
 
     def DeleteMessages(self, request, context):
-        """Deletes one or more messages if the user is either the sender or receiver."""
+        """
+        RPC method to delete one or more messages if the user is either the sender or the receiver.
+
+        :param request: A DeleteMessagesRequest containing username and a list of message_ids.
+        :param context: gRPC context.
+        :return: DeleteMessagesResponse indicating the number of messages successfully deleted.
+        """
         req_size = len(request.SerializeToString())
 
         username = request.username
@@ -439,7 +506,13 @@ class FaultTolerantChatServicer(chat_pb2_grpc.ChatServiceServicer):
         return resp
 
     def DeleteUser(self, request, context):
-        """Deletes the current user from the database, along with their messages."""
+        """
+        RPC method to delete the current user from the database, along with their messages.
+
+        :param request: A DeleteUserRequest containing the username.
+        :param context: gRPC context.
+        :return: DeleteUserResponse indicating success or failure.
+        """
         req_size = len(request.SerializeToString())
 
         username = request.username
@@ -483,7 +556,15 @@ class FaultTolerantChatServicer(chat_pb2_grpc.ChatServiceServicer):
         return resp
 
     def Subscribe(self, request, context):
-        """Streaming RPC that yields messages to the user in real-time."""
+        """
+        Streaming RPC that yields messages to the user in real-time. The user must be active
+        (logged in) to receive messages. As soon as they disconnect (context ends),
+        the subscription is removed.
+
+        :param request: A SubscribeRequest containing the username.
+        :param context: gRPC context.
+        :return: A generator of IncomingMessage objects (streamed via gRPC).
+        """
         username = request.username
         
         # Check if user is active
@@ -517,20 +598,15 @@ class FaultTolerantChatServicer(chat_pb2_grpc.ChatServiceServicer):
 
 def run_server(host, port, node_id, raft_port, other_nodes=None):
     """
-    Run a fault-tolerant chat server node
-    
-    Parameters:
-    -----------
-    host : str
-        The host to bind the gRPC server to
-    port : int
-        The port to bind the gRPC server to
-    node_id : int
-        Unique ID for this node in the cluster
-    raft_port : int
-        Port for Raft consensus communication
-    other_nodes : list
-        List of other nodes in the format ["host:raft_port", ...]
+    Run a fault-tolerant chat server node. This sets up the RaftDB instance,
+    starts the gRPC server, and periodically prints cluster debug info.
+
+    :param host: The host/IP address to bind the gRPC server to.
+    :param port: The port to bind the gRPC server to.
+    :param node_id: Unique integer ID for this node in the cluster.
+    :param raft_port: Port used for Raft consensus communication.
+    :param other_nodes: List of other nodes in the format ["host:raft_port", ...].
+                       Defaults to an empty list if None.
     """
     # Create Raft address for this node
     self_addr = f"{host}:{raft_port}"
@@ -548,6 +624,10 @@ def run_server(host, port, node_id, raft_port, other_nodes=None):
     time.sleep(5)  # Give Raft time to establish leadership
 
     def debug_print_cluster():
+        """
+        Continuously print debug information about the cluster's status,
+        including leadership info, quorum presence, and partner nodes.
+        """
         while True:
             time.sleep(5)
             status = raft_db.getStatus()
@@ -598,6 +678,9 @@ def run_server(host, port, node_id, raft_port, other_nodes=None):
     
     # Set up signal handlers for graceful shutdown
     def handle_shutdown(signum, frame):
+        """
+        Handle termination signals to gracefully stop the gRPC server and close the DB.
+        """
         print(f"Node {node_id} shutting down...")
         raft_db.close()
         server.stop(5)  # 5 second grace period
@@ -616,7 +699,8 @@ def run_server(host, port, node_id, raft_port, other_nodes=None):
 
 def main():
     """
-    Main entry point for the fault-tolerant chat server
+    Main entry point for the fault-tolerant gRPC chat server. Parses command-line 
+    arguments and launches the server with the specified configuration.
     """
     parser = argparse.ArgumentParser(description="Fault-Tolerant gRPC Chat Server")
     parser.add_argument("--host", default="127.0.0.1", help="Host to bind to")
