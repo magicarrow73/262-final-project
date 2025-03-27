@@ -99,8 +99,8 @@ Make sure that the working directory is set to the project root so that the modu
 
 ## Engineering Notebook
 
-For a detailed account of our design decisions, experiments, and progress, please refer to our [Engineering Notebook](https://docs.google.com/document/d/1esiCXiTv-_OiAmb66p9OGL7wYtLlkvueDtkRiMJyd2w/edit?usp=sharing).
+For more detail, please refer to our [Engineering Notebook](https://docs.google.com/document/d/1esiCXiTv-_OiAmb66p9OGL7wYtLlkvueDtkRiMJyd2w/edit?usp=sharing).
 
 ---
 
-If you encounter any issues, please refer to the engineering notebook for further context.
+Thanks for reading, and if you encounter any issues, please refer to the engineering notebook for further context.
