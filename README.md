@@ -1,105 +1,106 @@
-Below is our documentation.
+Our documentation is below.
 ---
 
-# Fault-Tolerant gRPC Chat Service
+# gRPC Fault-Tolerant Chat System
 
-This repository contains a fault-tolerant chat service implemented using gRPC and a Raft consensus algorithm for state replication. The system is designed to handle node failures while maintaining persistent user data and messages.
+This project implements a fault-tolerant chat service using gRPC and Raft consensus. Our system is designed to remain available and consistent even if several nodes fail. The state is replicated across a cluster of nodes, and users can create accounts, log in, send messages, and read persisted messages even after a cluster restart.
 
-## Overview
+## Table of Contents
 
-Our chat service allows users to:
-- Create user accounts
-- Log in and log out
-- Send and read messages
-- List available users
-- Delete messages and accounts
-
-The system leverages Raft to replicate state across a cluster of nodes, ensuring that the service continues to operate even if some nodes fail. Persistence is maintained via local SQLite databases on each node.
+- [Features](#features)
+- [Installation](#installation)
+- [Usage](#usage)
+- [Testing](#testing)
+- [Engineering Notebook](#engineering-notebook)
+- [License](#license)
 
 ## Features
 
-- **Fault Tolerance:** The system is designed to withstand up to *f* node failures in a 2f+1 node cluster.
-- **Persistence:** User accounts and messages are stored in local SQLite databases and persist even after node restarts.
-- **Leader Election:** If the current leader fails, a new leader is elected automatically.
-- **gRPC Interface:** All operations are accessible through a gRPC interface for efficient communication.
+- **Fault Tolerance:** Our chat service uses a Raft-based replication strategy to tolerate up to *f* node failures in a 2*f*+1 node cluster.
+- **Persistence:** User accounts and messages are stored persistently in SQLite databases on each node.
+- **Automatic Reconnection:** The client automatically reconnects to surviving nodes if one or more nodes become unavailable.
+- **Real-time Messaging:** Server streaming is used to push incoming messages to logged-in users.
 
 ## Installation
 
-1. **Clone the Repository:**
+We use a conda environment for this project. Please follow these steps to set up the environment:
+
+1. **Clone the repository:**
 
    ```bash
    git clone https://github.com/magicarrow73/262-gRPC.git
    cd 262-gRPC
    ```
 
-2. **Create a Virtual Environment and Install Dependencies:**
+2. **Create the conda environment:**
+
+   Our environment is specified in the [`environment.yaml`](./environment.yaml) file. To create the environment, run:
 
    ```bash
-   python -m venv 262-env
-   source 262-env/bin/activate
-   pip install -r requirements.txt
+   conda env create -f environment.yaml
    ```
 
-   > **Note:** Ensure that you have the required version of `grpcio` and `grpcio-tools` to match the generated protobuf code.
+   *Note:* We have removed the `prefix` field from the YAML file to ensure that the environment can be created on any system.
 
-## Running the Cluster and Client
-
-You can start the cluster and client using the provided scripts. For example:
-
-1. **Start the Cluster:**
-
-   Open a terminal and run:
+3. **Activate the environment:**
 
    ```bash
-   python start_cluster.py --servers 5
+   conda activate 262-env
    ```
 
-   This command starts a 5-node cluster. The nodes are configured using the `ft_server_grpc.py` file and each node uses its own SQLite database.
+## Usage
 
-2. **Start the Client:**
+### Starting the Cluster
 
-   Open another terminal and run:
+You can start the entire cluster using the provided `start_cluster.py` script. For example, to start a 5-node cluster, run:
 
-   ```bash
-   python ft_client_grpc.py --servers 127.0.0.1:50051,127.0.0.1:50052,127.0.0.1:50053,127.0.0.1:50054,127.0.0.1:50055
-   ```
+```bash
+python start_cluster.py --servers 5
+```
 
-   This launches a Tkinter-based client that connects to the cluster. You can then create accounts, log in, and send messages through the GUI.
+Make sure you are in the project root directory (the directory that contains the `system_main` folder) when you run this command.
+
+### Running the Client
+
+In a separate terminal, you can start the fault-tolerant client using the `ft_client_grpc.py` script. For example:
+
+```bash
+python ft_client_grpc.py --servers 127.0.0.1:50051,127.0.0.1:50052,127.0.0.1:50053,127.0.0.1:50054,127.0.0.1:50055
+```
+
+The client provides a simple GUI to create accounts, log in, send messages, list users, read messages, and delete messages or accounts.
 
 ## Testing
 
-We have included a comprehensive set of unit and integration tests to ensure that:
-- The persistent data store works correctly.
-- The system maintains fault tolerance (i.e., it remains operational when some nodes fail).
-- The cluster correctly re-elects a leader when the current leader fails.
-- Data persists even after the cluster is shut down and restarted.
+We have included a comprehensive test suite to verify the fault tolerance and persistence features of the system. The tests check the following:
 
-To run the tests, execute the following command from the project root:
+1. **Persistence Before Faults:**  
+   We create a user and send a self–message, then immediately log in and verify that the message is present. This confirms that our data store is persistent under normal conditions.
+
+2. **Fault Tolerance Operations:**  
+   We create and log in as a user (e.g., "alice"), then simulate node failures by terminating two nodes. We then send a self–message from a surviving node to verify that the system continues to function despite faults.
+
+3. **Cluster Restart Persistence:**  
+   We create a user (e.g., "restart_user"), send a message, then shut down the entire cluster. After restarting the cluster using the same database files, we log in as that user and verify that the previously sent message is still present.
+
+To run the tests (if the test file is in the `unit_tests` directory), navigate to the project root and run:
 
 ```bash
 python -m unittest discover -s unit_tests
 ```
 
-> **Note:** Our tests include scenarios for normal operations as well as fault-tolerance cases. For detailed information about each test, please refer to the [Engineering Notebook](#engineering-notebook).
+Alternatively, if the test file is located in `system_main`, run:
+
+```bash
+python -m unittest discover -s system_main
+```
+
+Make sure that the working directory is set to the project root so that the module paths are correct.
 
 ## Engineering Notebook
 
-For more detailed explanations of our design decisions, implementation challenges, and testing procedures, please refer to our [Engineering Notebook](https://docs.google.com/document/d/1esiCXiTv-_OiAmb66p9OGL7wYtLlkvueDtkRiMJyd2w/edit?usp=sharing). This document includes:
-- Detailed design diagrams and flowcharts
-- Discussion of fault tolerance and persistence strategies
-- Testing methodologies and results
-- Lessons learned and future improvements
-
-## Contributing
-
-We welcome contributions! If you would like to contribute to this project, please fork the repository and submit a pull request with your changes. Be sure to include tests for any new functionality.
-
-## License
-
-This project is licensed under the [MIT License](LICENSE).
+For a detailed account of our design decisions, experiments, and progress, please refer to our [Engineering Notebook](https://docs.google.com/document/d/1esiCXiTv-_OiAmb66p9OGL7wYtLlkvueDtkRiMJyd2w/edit?usp=sharing).
 
 ---
 
-We hope this README provides a clear overview of the project, its features, and how to get started. For further details, please refer to our Engineering Notebook via the link above.
-
-If you have any questions, please feel free to contact us.
+If you encounter any issues, please refer to the engineering notebook for further context.
