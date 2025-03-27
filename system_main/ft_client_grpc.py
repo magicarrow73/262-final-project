@@ -14,8 +14,12 @@ import time
 import random
 import queue
 
-import chat_pb2
+# #uncomment if running a testing file in unittests
+# from system_main import chat_pb2
+# from system_main import chat_pb2_grpc
 import chat_pb2_grpc
+import chat_pb2
+
 from utils import hash_password
 
 CLIENT_LOG_FILE = "client_data_usage.log"

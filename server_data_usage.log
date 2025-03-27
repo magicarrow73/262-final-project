@@ -12,3 +12,11 @@ ReadMessages,7,32
 DeleteMessages,10,32
 DeleteUser,7,30
 DeleteUser,5,31
+ListUsers,9,34
+CreateUser,25,44
+Login,18,35
+SendMessage,35,24
+ListUsers,10,34
+CreateUser,37,51
+Login,23,42
+SendMessage,48,24

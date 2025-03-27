@@ -16,8 +16,12 @@ import time
 import signal
 import sys
 
-import chat_pb2
+# #uncomment if running a testing file in unittests
+# from system_main import chat_pb2
+# from system_main import chat_pb2_grpc
 import chat_pb2_grpc
+import chat_pb2
+
 from raft_db import RaftDB
 from utils import verify_password
 
