@@ -3,7 +3,7 @@ Group 10 (Kevin Cong, Russell Li)
 
 # gRPC Fault-Tolerant Chat System
 
-This project implements a fault-tolerant chat service using gRPC and Raft consensus. Our system is designed to remain available and consistent even if several nodes fail. The state is replicated across a cluster of nodes, and users can create accounts, log in, send messages, and read persisted messages even after a cluster restart.
+This project implements a fault-tolerant chat service using gRPC and Raft consensus. Following the specifications, our system is designed to remain available and consistent even if several nodes fail. The state is replicated across a cluster of nodes, and users can create accounts, log in, send messages, and read persisted messages even after a cluster restart.
 
 ## Table of Contents
 
@@ -12,7 +12,6 @@ This project implements a fault-tolerant chat service using gRPC and Raft consen
 - [Usage](#usage)
 - [Testing](#testing)
 - [Engineering Notebook](#engineering-notebook)
-- [License](#license)
 
 ## Features
 
