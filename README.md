@@ -1,5 +1,4 @@
-Below is an example README file in Markdown format that includes a reference to your engineering notebook. You can save this as `README.md` in your project root.
-
+Below is our documentation.
 ---
 
 # Fault-Tolerant gRPC Chat Service
@@ -29,15 +28,15 @@ The system leverages Raft to replicate state across a cluster of nodes, ensuring
 1. **Clone the Repository:**
 
    ```bash
-   git clone https://github.com/your-username/your-repo.git
-   cd your-repo
+   git clone https://github.com/magicarrow73/262-gRPC.git
+   cd 262-gRPC
    ```
 
 2. **Create a Virtual Environment and Install Dependencies:**
 
    ```bash
    python -m venv 262-env
-   source 262-env/bin/activate  # On Windows: 262-env\Scripts\activate
+   source 262-env/bin/activate
    pip install -r requirements.txt
    ```
 
