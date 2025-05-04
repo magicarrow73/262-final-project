@@ -67,11 +67,9 @@ class AuctionService(chat_pb2_grpc.AuctionServiceServicer):
     def StartAuction(self, req, ctx):
         ok = self.raft.start_auction(req.auction_id, req.deadline_unix, sync=True)
 
-        # schedule end only if this node is leader
-        status = self.raft.getStatus()
-        if status and status.get('state') == 2:  # 2 == leader
-            delay = max(0, req.deadline_unix - int(time.time()))
-            threading.Timer(delay, lambda: self.raft.end_auction(req.auction_id)).start()
+        # schedule the end on every node, not just leaders
+        delay = max(0, req.deadline_unix - int(time.time()))
+        threading.Timer(delay, lambda: self.raft.end_auction(req.auction_id, sync=True)).start()
 
         resp = chat_pb2.StartAuctionResponse(
             status="success" if ok else "error",

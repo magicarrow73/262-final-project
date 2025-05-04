@@ -19,8 +19,8 @@ class DBHelper:
     """
     def __init__(self, db_path):
         self.__db_path = db_path
-        self.__conn = None
-        self.__conn_lock = threading.Lock()
+        self.__conn = None            # will be dropped during pickling
+        self.__conn_lock = threading.Lock()  # will be dropped during pickling
         self._init_db()
 
     def _get_connection(self):
@@ -60,6 +60,21 @@ class DBHelper:
             with self.__conn_lock:
                 self.__conn.close()
                 self.__conn = None
+
+    # ─── Prevent pickle of locks & connections ─────────────────────────────────
+    def __getstate__(self):
+        st = self.__dict__.copy()
+        # remove un-pickleable attributes
+        st.pop('_DBHelper__conn_lock', None)
+        st.pop('_DBHelper__conn', None)
+        return st
+
+    def __setstate__(self, st):
+        # restore state
+        self.__dict__.update(st)
+        # recreate fresh lock and closed conn
+        self.__conn_lock = threading.Lock()
+        self.__conn = None
 
     def insert_user(self, username, password_hash, display_name):
         try:
@@ -166,7 +181,7 @@ class DBHelper:
 
 class RaftDB(SyncObj):
     """
-    Raft-backed DB wrapper.  Read methods are local, write methods are @replicated.
+    Raft-backed DB wrapper. Read methods are local, write methods are @replicated.
     """
 
     def __init__(self, self_address, other_addresses, db_path):
@@ -182,18 +197,21 @@ class RaftDB(SyncObj):
             connectionRetryDelay=0.5,
             connectionTimeout=10.0,
             leaderFallbackTimeout=10.0,
+            # postpone compaction until extremely large thresholds
+            logCompactionMinEntries=10**12,
+            logCompactionMinTime=10**12,
         )
         super().__init__(self_address, other_addresses, conf)
         self.__db = DBHelper(db_path)
 
-        # replicated in‐memory state
+        # replicated in‑memory state
         self._active_users = {}      # username → True
         self._auctions     = {}      # auction_id → {deadline, bids, ended, result}
 
     def close(self):
         self.__db.close()
 
-    # ---------- replicated user/message methods (unchanged) ---------- #
+    # ---------- replicated user/message methods ---------- #
     @replicated
     def create_user(self, username, password_hash, display_name):
         return self.__db.insert_user(username, password_hash, display_name)
@@ -234,8 +252,7 @@ class RaftDB(SyncObj):
     def user_logout(self, username):
         return self._active_users.pop(username, None) is not None
 
-    # ---------- auction methods (new!) ---------- #
-
+    # ---------- auction methods ---------- #
     @replicated
     def start_auction(self, auction_id, deadline_unix):
         if auction_id in self._auctions:
@@ -275,7 +292,6 @@ class RaftDB(SyncObj):
         return True
 
     # ---------- read-only methods ---------- #
-
     def get_user_by_username(self, username):
         return self.__db.get_user_by_username(username)
 
