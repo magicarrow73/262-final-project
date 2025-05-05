@@ -1,4 +1,7 @@
-#!/usr/bin/env python3
+"""ft_client.py
+================
+Graphical (Tkinter) client for the fault-tolerant distributed auction system.
+"""
 import threading
 import time
 import tkinter as tk
@@ -9,6 +12,19 @@ from google.protobuf import empty_pb2
 from utils import hash_password
 
 class FTClient:
+    """Interactive GUI client that talks to any available auction server.
+
+    Parameters
+    ----------
+    servers
+        List of gRPC host:port strings.  The client will iterate through the
+        list on startup and upon transient failures (``UNAVAILABLE``) until a
+        responsive server is found.
+    max_retries
+        Number of times :meth:`safe_rpc` will retry an RPC before giving up.
+    retry_delay
+        Seconds to wait between successive retries.
+    """
     def __init__(self, servers, max_retries=3, retry_delay=0.1):
         self.servers = servers
         self.idx = 0
@@ -49,16 +65,14 @@ class FTClient:
         self._start_notification_loop()
 
     def log_msg(self, msg):
+        """Append msg to the scrolling log widget (thread-safe)."""
         self.log.config(state='normal')
         self.log.insert(tk.END, msg + "\n")
         self.log.config(state='disabled')
         self.log.see(tk.END)
 
     def connect(self):
-        """
-        Try each server until one is reachable. Wait for channel readiness
-        before issuing the ping Login RPC.
-        """
+        """Try each endpoint in ``self.servers`` until a ping succeeds."""
         for _ in range(len(self.servers)):
             addr = self.servers[self.idx]
             try:
@@ -83,9 +97,7 @@ class FTClient:
         self.root.destroy()
 
     def safe_rpc(self, rpc_call, request):
-        """
-        Try up to max_retries. On UNAVAILABLE, reconnect and retry.
-        """
+        """Invoke rpc_call with retries & automatic reconnect on ``UNAVAILABLE``."""
         for _ in range(self.max_retries):
             try:
                 return rpc_call(request)
@@ -103,6 +115,7 @@ class FTClient:
         return None
 
     def create_user(self):
+        """Prompt for username/password and issue CreateUser RPC."""
         u = simpledialog.askstring("Create User", "Username:")
         if not u: return
         pw = simpledialog.askstring("Create User", f"Password for {u}:", show="*")
@@ -116,6 +129,7 @@ class FTClient:
         if r: self.log_msg(f"CreateUser → {r.status}: {r.message}")
 
     def login(self):
+        """Prompt for credentials and issue Login RPC."""
         u = simpledialog.askstring("Login", "Username:")
         if not u: return
         pw = simpledialog.askstring("Login", f"Password for {u}:", show="*")
@@ -143,6 +157,7 @@ class FTClient:
 
     
     def start_bundle(self):
+        """Open a bundle auction with arbitrary item names."""
         aid = simpledialog.askstring("Bundle Auction", "Auction ID:")
         if not aid:
             return
@@ -164,6 +179,7 @@ class FTClient:
 
 
     def join_bundle(self):
+        """GUI dialog that lets the user craft & submit a single-minded bid."""
         aid = simpledialog.askstring("Join Bundle Auction", "Auction ID:")
         if not aid:
             return
@@ -220,6 +236,7 @@ class FTClient:
         grid(row=len(items)+1, columnspan=3, pady=3)
 
     def get_winner(self):
+        """Fetch and display winners for either auction type."""
         aid = simpledialog.askstring("Get Winner", "Auction ID:")
         if not aid: return
 
@@ -241,6 +258,7 @@ class FTClient:
                 self.log_msg(f"GetWinner → {r.status}: {r.message}")
 
     def list_bundle_auctions(self):
+        """Log status and winners for all bundle auctions."""
         r = self.safe_rpc(self.auction_stub.ListBundleAuctions, empty_pb2.Empty())
         if not r: return
         self.log_msg("Bundle Auctions:")
@@ -264,6 +282,7 @@ class FTClient:
         t.start()
 
     def _notification_loop(self):
+        """Periodic polling that triggers log messages & popups from the GUI thread."""
         while True:
             time.sleep(5)
             r = self.safe_rpc(self.auction_stub.ListAuctions, empty_pb2.Empty())
@@ -306,6 +325,7 @@ class FTClient:
                 self.known_bundle_auctions[b.auction_id] = b.ended
 
     def run(self):
+        """Start Tkinter mainloop (blocking)."""
         self.root.mainloop()
 
 if __name__ == "__main__":

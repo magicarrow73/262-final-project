@@ -1,5 +1,7 @@
-"""
-Greedy VCG (Lehmann–O’Callaghan–Shoham 2002) implementation for single-minded bidders.
+"""greedy_vcg.py
+=================================
+Implementation of the Greedy VCG mechanism for single-minded combinatorial
+auctions as introduced by Lehmann, O’Callaghan and Shoham in 2002.
 """
 from __future__ import annotations
 import math
@@ -14,7 +16,19 @@ __all__ = ["Bid","greedy_vcg"]
 
 @dataclass(frozen=True)
 class Bid:
-    """A single‑minded bid (S_i, v_i)."""
+    """A *single‑minded* bid :math:`(S_i, v_i)`.
+
+    Parameters
+    ----------
+    bidder_id
+        Globally unique identifier (string) of the bidder.
+    bundle
+        Bitmask encoding of the requested item set – item *j* is included iff
+        bit *j* is 1.
+    value
+        Non‑negative value :math:`v_i` the bidder assigns to *exactly* this
+        bundle (and 0 to all others).
+    """
 
     bidder_id: str   # globally unique identifier for the bidder
     bundle: int      # bitmask representation of the requested bundle
@@ -23,7 +37,13 @@ class Bid:
     # --------------------------------------------------------------------
     @staticmethod
     def from_iter(bidder_id: str, items: Iterable[int], value: float) -> "Bid":
-        """Build a `Bid` from an iterable of item indices."""
+        """Build a :class:`Bid` from an *iterable* of item indices.
+
+        Examples
+        --------
+        >>> Bid.from_iter('b1', [0, 2, 3], 10.0).bundle
+        0b1101  # (binary)
+        """
         mask = 0
         for j in items:
             mask |= 1 << j
@@ -31,6 +51,7 @@ class Bid:
 
     # Convenience helpers -------------------------------------------------
     def bundle_size(self) -> int:
+        """Return :math:`|S_i|` – the cardinality of the requested bundle."""
         if hasattr(int, "bit_count"):
             return self.bundle.bit_count()
         n, c = self.bundle, 0
@@ -40,6 +61,11 @@ class Bid:
         return c
 
     def score(self) -> float:
+        """Compute the greedy score :math:`v_i / \sqrt{|S_i|}`.
+
+        Bids are sorted by this metric; ties are broken by higher value and then
+        by bidder_id (lexicographically).
+        """
         k = self.bundle_size()
         return 0.0 if k == 0 else self.value / math.sqrt(k)
 
@@ -48,8 +74,22 @@ class Bid:
 ###############################################################################
 
 def greedy_vcg(bids: Iterable[Bid], m: int) -> Tuple[List[Bid], Dict[str, float]]:
-    """
-    Greedy allocation with critical‑value payments.
+    """Greedy allocation with *critical‑value* payments.
+
+    Parameters
+    ----------
+    bids
+        Iterable of :class:`Bid` objects (order irrelevant).
+    m
+        Total number of distinct items (only used for sanity checks / future
+        extensions – currently not referenced).
+
+    Returns
+    -------
+    winners
+        List of accepted :class:`Bid` objects, in *allocation order*.
+    payments
+        Dict mapping *bidder_id* → *payment* (0 for losing or unopposed bids).
     """
     bid_list = list(bids)
     bid_list.sort(key=lambda b: (-b.score(), -b.value, b.bidder_id))

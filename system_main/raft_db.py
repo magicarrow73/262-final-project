@@ -1,11 +1,31 @@
+"""raft_db.py
+================
+SQLite-backed **replicated** database and auction state-machine driven by
+:pypi:`pysyncobj` (Raft).
+
+Two layers are provided:
+
+* :class:`DBHelper` – thin wrapper around SQLite that handles schema creation
+  and basic CRUD helpers.  It is **NOT** thread-safe by itself, so a private
+  lock protects every DB interaction.
+* :class:`RaftDB` – a :class:`pysyncobj.SyncObj` subclass that exposes high-level
+  operations (user management, simple sealed-bid auctions, arbitrary SQL
+  execution).  Methods that *mutate* state are decorated with
+  :func:`pysyncobj.replicated`, meaning they are replicated via Raft before
+  executing on each node.
+"""
 import sqlite3
 import threading
 import time
 from pysyncobj import SyncObj, replicated, SyncObjConf
 
 class DBHelper:
-    """
-    A helper class to manage SQLite operations.
+    """Thread-safe helper for **single-node** SQLite operations.
+
+    Parameters
+    ----------
+    db_path
+        Filesystem path of the SQLite DB.  The file is created on first use.
     """
     def __init__(self, db_path):
         self.__db_path = db_path
@@ -46,6 +66,7 @@ class DBHelper:
             c.commit()
 
     def close(self):
+        """Close the underlying SQLite connection (idempotent)."""
         if self.__conn is not None:
             with self.__conn_lock:
                 self.__conn.close()
@@ -64,6 +85,10 @@ class DBHelper:
         self.__conn = None
 
     def insert_user(self, username, password_hash, display_name):
+        """Insert a new user row.
+
+        Returns ``True`` on success, ``False`` if username already exists.
+        """
         try:
             with self.__conn_lock:
                 c = self._get_connection()
@@ -77,6 +102,7 @@ class DBHelper:
             return False
 
     def delete_user(self, user_id):
+        """Delete user by id; returns number of rows removed (0 or 1)."""
         with self.__conn_lock:
             c = self._get_connection()
             cur = c.cursor()
@@ -86,6 +112,7 @@ class DBHelper:
             return deleted
 
     def get_user_by_username(self, username):
+        """Return user row for username or None if not found."""
         with self.__conn_lock:
             c = self._get_connection()
             cur = c.cursor()
@@ -93,8 +120,16 @@ class DBHelper:
             return cur.fetchone()
 
 class RaftDB(SyncObj):
-    """
-    Raft-backed DB wrapper. Read methods are local, write methods are @replicated.
+    """Distributed chat / auction store backed by Raft‑replicated SQLite.
+
+    Parameters
+    ----------
+    self_address
+        host:port string for this node’s Raft endpoint.
+    other_addresses
+        List of host:port strings for peer nodes.
+    db_path
+        Local path of the SQLite file to use per node.
     """
 
     def __init__(self, self_address, other_addresses, db_path):
@@ -121,15 +156,18 @@ class RaftDB(SyncObj):
         self._auctions     = {}      # auction_id → {deadline, item_name, bids, ended, result}
 
     def close(self):
+        """Close the underlying SQLite connection (non‑replicated)."""
         self.__db.close()
 
     # ---------- replicated user/message methods ---------- #
     @replicated
     def create_user(self, username, password_hash, display_name):
+        """Create a new user; returns *False* if username is already taken."""
         return self.__db.insert_user(username, password_hash, display_name)
 
     @replicated
     def delete_user(self, username):
+        """Remove *username* and all dependent rows (messages)."""
         row = self.__db.get_user_by_username(username)
         if not row: return False
         deleted = self.__db.delete_user(row["id"])
@@ -138,16 +176,23 @@ class RaftDB(SyncObj):
 
     @replicated
     def user_login(self, username):
+        """Mark user as *online* in the replicated set."""
         self._active_users[username] = True
         return True
 
     @replicated
     def user_logout(self, username):
+        """Mark user as *offline*.  Returns ``False`` if user wasn’t active."""
         return self._active_users.pop(username, None) is not None
 
     # ---------- auction methods ---------- #
     @replicated
     def start_auction(self, auction_id, duration_seconds, item_name):
+        """Create a new sealed‑bid auction.
+
+        The auction closes after *duration_seconds* **wall‑clock** seconds.
+        Returns ``False`` if *auction_id* already exists.
+        """
         if auction_id in self._auctions:
             return False
         now = int(time.time())
@@ -163,6 +208,7 @@ class RaftDB(SyncObj):
 
     @replicated
     def submit_bid(self, auction_id, bidder_id, amount):
+        """Place a bid; fail if auction expired or already ended."""
         a = self._auctions.get(auction_id)
         now = int(time.time())
         if not a or a["ended"] or now > a["deadline"]:
@@ -172,6 +218,7 @@ class RaftDB(SyncObj):
 
     @replicated
     def end_auction(self, auction_id):
+        """Manually close an auction and compute second‑price outcome."""
         a = self._auctions.get(auction_id)
         if not a or a["ended"]:
             return False
@@ -189,10 +236,7 @@ class RaftDB(SyncObj):
     
     @replicated
     def execute(self, sql: str, params: tuple = ()):
-        """
-        Replicated write: the SQL statement is appended to the Raft log,
-        then applied to every replica’s SQLite DB.
-        """
+        """Replicated write query – issued identically on every node."""
         with self.__db._DBHelper__conn_lock:
             cur = self.__db._get_connection()
             cur.execute(sql, params)
@@ -200,33 +244,34 @@ class RaftDB(SyncObj):
         return True
 
     def query(self, sql: str, params: tuple = ()):
-        """Local read helper → list(sqlite3.Row).  Reads need not replicate."""
+        """Run a read‑only query and return *all* rows as ``list``."""
         with self.__db._DBHelper__conn_lock:
             cur = self.__db._get_connection().execute(sql, params)
             return list(cur.fetchall())
 
     def query_one(self, sql: str, params: tuple = ()):
-        """Local read helper → first row or None."""
+        """Return first row of a read‑only query or ``None``."""
         rows = self.query(sql, params)
         return rows[0] if rows else None
 
     # ---------- read-only methods ---------- #
     def get_user_by_username(self, username):
+        """Retrieve user row via underlying DBHelper (local read)."""
         return self.__db.get_user_by_username(username)
 
     def is_user_active(self, username):
+        """Return ``True`` iff username is currently logged in."""
         return username in self._active_users
 
     def get_auction_result(self, auction_id):
+        """Return (winner, winning_bid, price_paid) tuple or ``None``."""
         a = self._auctions.get(auction_id)
         if not a or not a["ended"]:
             return None
         return a["result"]
 
     def list_auctions(self):
-        """
-        :returns: list of (auction_id, item_name, ended, deadline)
-        """
+        """Enumerate auctions → ``[(id, item, ended, deadline), …]``."""
         return [
             (aid, info["item_name"], info["ended"], info["deadline"])
             for aid, info in self._auctions.items()

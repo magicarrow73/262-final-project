@@ -1,10 +1,7 @@
-#!/usr/bin/env python3
+"""ft_server_grpc.py
+====================
+Fault-tolerant gRPC front-end for the replicated :class:`raft_db.RaftDB` data store.
 """
-ft_server_grpc.py
-
-Fault‑tolerant gRPC server using RaftDB for a 2nd‑price auction.
-"""
-
 import threading
 import time
 import signal
@@ -24,10 +21,22 @@ from system_main.greedy_vcg import Bid, greedy_vcg
 SERVER_LOG_FILE = "server_data_usage.log"
 
 def start_grpc_server(db, port: int, max_workers: int = 10):
-    """
-    Wrap AuthService + AuctionService around an existing RaftDB and
-    start a gRPC server on the given port.  Returns the `grpc.Server`
-    so callers can stop it later with `server.stop(grace)`.
+    """Convenience wrapper that spins up a gRPC server with both services.
+
+    Parameters
+    ----------
+    db
+        A live instance of :class:`raft_db.RaftDB` shared by all servicers.
+    port
+        TCP port the gRPC server binds to ("[::]:{port}").
+    max_workers
+        Size of the :class:`concurrent.futures.ThreadPoolExecutor` pool.
+
+    Returns
+    -------
+    grpc.Server
+        The running server instance so callers can invoke
+        :pymeth:`grpc.Server.stop` later.
     """
     from concurrent import futures
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=max_workers))
@@ -38,15 +47,22 @@ def start_grpc_server(db, port: int, max_workers: int = 10):
     return server
 
 def log_data_usage(method_name: str, request, response):
+    """Append a CSV line recording request/response payload sizes.
+
+    A new file is initialised with a header row. This rudimentary logging helps
+    gauge bandwidth usage during experiments.
+    """
     header = "" if os.path.exists(SERVER_LOG_FILE) else "method,req_size,resp_size\n"
     with open(SERVER_LOG_FILE, "a") as f:
         f.write(header + f"{method_name},{len(request.SerializeToString())},{len(response.SerializeToString())}\n")
 
 class AuthService(auction_pb2_grpc.AuthServiceServicer):
+    """gRPC implementation of the AuthService protobuf definition."""
     def __init__(self, raft):
         self.raft = raft
 
     def CreateUser(self, req, ctx):
+        """Create a new user row if username is not already taken."""
         existing = self.raft.get_user_by_username(req.username)
         if existing:
             resp = auction_pb2.CreateUserResponse(status="user_exists", message="already exists", username=req.username)
@@ -61,6 +77,7 @@ class AuthService(auction_pb2_grpc.AuthServiceServicer):
         return resp
 
     def Login(self, req, ctx):
+        """Validate hashed password and mark user as active in Raft."""
         user = self.raft.get_user_by_username(req.username)
         if not user or not verify_password(req.hashed_password, user["password_hash"]):
             resp = auction_pb2.LoginResponse(status="error", message="bad credentials")
@@ -71,16 +88,19 @@ class AuthService(auction_pb2_grpc.AuthServiceServicer):
         return resp
 
     def Logout(self, req, ctx):
+        """Mark user as offline (idempotent)."""
         self.raft.user_logout(req.username, sync=True)
         resp = auction_pb2.LogoutResponse(status="success", message="logged out")
         log_data_usage("Logout", req, resp)
         return resp
 
 class AuctionService(auction_pb2_grpc.AuctionServiceServicer):
+    """gRPC implementation of the AuctionService protobuf definition."""
     def __init__(self, raft):
         self.raft = raft
 
     def StartAuction(self, req, ctx):
+        """Open a second‑price auction for a single item."""
         ok = self.raft.start_auction(
             req.auction_id,
             req.duration_seconds,
@@ -95,6 +115,7 @@ class AuctionService(auction_pb2_grpc.AuctionServiceServicer):
         return resp
     
     def StartBundleAuction(self, req, ctx):
+        """Create metadata and item table rows for a bundle auction."""
         try:
             self.raft.execute(
                 "INSERT OR IGNORE INTO bundle_meta (auction_id,creator,deadline) VALUES (?,?,?)",
@@ -110,6 +131,7 @@ class AuctionService(auction_pb2_grpc.AuctionServiceServicer):
             return auction_pb2.StartBundleAuctionResponse(status="error",   message="exists")
 
     def ListBundleItems(self, req, ctx):
+        """Return item_names for a given bundle auction."""
         rows = self.raft.query(
             "SELECT item_name FROM bundle_item WHERE auction_id=? ORDER BY item_idx",
             (req.auction_id,))
@@ -118,6 +140,7 @@ class AuctionService(auction_pb2_grpc.AuctionServiceServicer):
         return auction_pb2.ListBundleItemsResponse(item_names=[n for (n,) in rows])
 
     def ListBundleAuctions(self, req, ctx):
+        """List metadata for all bundle auctions (open or closed)."""
         resp = auction_pb2.ListBundleAuctionsResponse()
         now  = time.time()
         for aid, dl, ended in self.raft.query(
@@ -134,6 +157,7 @@ class AuctionService(auction_pb2_grpc.AuctionServiceServicer):
         return resp
 
     def SubmitBundleBid(self, req, ctx):
+        """Insert a single‑minded bundle bid row."""
         row = self.raft.query_one(
             "SELECT ended FROM bundle_meta WHERE auction_id=?", (req.auction_id,))
         if not row or row[0]:
@@ -150,6 +174,7 @@ class AuctionService(auction_pb2_grpc.AuctionServiceServicer):
         return empty_pb2.Empty()
 
     def EndAuction(self, req, ctx):
+        """Close a second‑price auction (manual trigger)."""
         ok = self.raft.end_auction(req.auction_id, sync=True)
         resp = auction_pb2.EndAuctionResponse(
             status="success" if ok else "error",
@@ -159,6 +184,7 @@ class AuctionService(auction_pb2_grpc.AuctionServiceServicer):
         return resp
 
     def GetWinner(self, req, ctx):
+        """Return winner and price once auction is closed."""
         res = self.raft.get_auction_result(req.auction_id)
         if not res:
             resp = auction_pb2.GetWinnerResponse(status="error", message="not closed or no such")
@@ -172,6 +198,7 @@ class AuctionService(auction_pb2_grpc.AuctionServiceServicer):
         return resp
 
     def ListAuctions(self, req, ctx):
+        """Stream basic metadata for all second‑price auctions."""
         resp = auction_pb2.ListAuctionsResponse()
         now = int(time.time())
         for aid, item, ended, deadline in self.raft.list_auctions():
@@ -185,6 +212,7 @@ class AuctionService(auction_pb2_grpc.AuctionServiceServicer):
         return resp
     
     def RunGreedyAuction(self, req, ctx):
+        """Compute Greedy‑VCG allocation and payments and persist results."""
         creator, dl, ended = self.raft.query_one(
             "SELECT creator,deadline,ended FROM bundle_meta WHERE auction_id=?",
             (req.auction_id,))
@@ -236,6 +264,7 @@ class AuctionService(auction_pb2_grpc.AuctionServiceServicer):
         return resp
 
 def serve(host, port, node_id, raft_port, peers):
+    """High‑level helper that boots RaftDB, creates tables & starts the gRPC loop."""
     # initialize Raft-backed DB
     raft = RaftDB(f"{host}:{raft_port}", peers, f"node{node_id}.db")
 
@@ -294,6 +323,7 @@ def serve(host, port, node_id, raft_port, peers):
 
     # background watcher to reliably end auctions
     def auction_watcher():
+        """Background loop that auto‑closes expired auctions every second."""
         while True:
             now = time.time()
             for aid, item, ended, deadline in raft.list_auctions():
@@ -339,11 +369,10 @@ def _create_server(
     peer_raft_addrs: Optional[List[str]] = None,
     db_path: str = ":memory:",
 ):
-    """
-    Programmatic entry point for pytest:
-      • boots SyncObj/RaftDB
-      • registers AuthService + AuctionService
-      • returns (public_addr, stop_event) so tests can cleanly shut down.
+    """Spin up an in‑process server for unit tests.
+
+    Returns a tuple (server, stop_event) and set stop_event when the test
+    finishes to shut everything down gracefully.
     """
     # Local imports to avoid polluting global namespace when used as CLI
     import concurrent.futures

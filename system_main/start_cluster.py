@@ -1,9 +1,12 @@
 """
 start_cluster.py
+================
+Launch a local or distributed cluster of fault-tolerant *chat* servers that
+communicate via **gRPC** and coordinate state with **Raft** consensus.
 
-This script provides a convenient way to start a cluster of fault-tolerant
-chat servers, either on a single machine or across multiple machines. Each
-server runs as an independent process, using gRPC and Raft for communication.
+Each server is spawned as a separate Python subprocess, so the cluster can be
+run entirely on one machine (handy for demos / unit-tests) or distributed
+across several hosts by passing a different `--host` value for each node.
 """
 
 import sys
@@ -18,13 +21,12 @@ import atexit
 running_procs = []
 
 def cleanup():
-    """
-    Terminate all running server processes on exit.
+    """Terminate **all** server subprocesses before the script exits.
 
-    This function is registered with atexit, so it is automatically called
-    when the Python interpreter exits, or when the script is interrupted
-    (e.g., via Ctrl+C). It attempts to terminate each server process gracefully,
-    and if that fails, it forces a kill.
+    The function is registered with :pymod:`atexit`, making it a finaliser that is
+    executed when either the Python interpreter finishes normally or the user sends **SIGINT** (``Ctrl+C``) / **SIGTERM**.
+
+    It first tries a *graceful* ``terminate()``.  If the child has not exited after 500 ms, a hard ``kill()`` is issued as a last resort.
     """
     for proc in running_procs:
         try:
@@ -39,17 +41,25 @@ def cleanup():
 atexit.register(cleanup)
 
 def start_server(server_id, num_servers, host='127.0.0.1', base_port=50051, base_raft_port=50100):
-    """
-    Start a single server in the cluster as a subprocess.
+    """Spawn a single chat server as a detached subprocess.
 
-    :param server_id: An integer ID for this server (unique within the cluster).
-    :param num_servers: The total number of servers in the cluster.
-    :param host: The host/IP address on which the server should listen.
-    :param base_port: The base port number for gRPC servers.
-                      The actual gRPC port for this server is base_port + server_id.
-    :param base_raft_port: The base port number for Raft consensus.
-                           The actual Raft port for this server is base_raft_port + server_id.
-    :return: A string containing the "host:grpc_port" address of this server.
+    Parameters
+    ----------
+    server_id
+        Unique integer identifier ``[0, num_servers)`` for the node.
+    num_servers
+        Total size of the cluster; used to build each node’s *peer list*.
+    host
+        Interface that the server binds to.  Can be an IP address or hostname.
+    base_port
+        First gRPC port – node *i* listens on ``base_port + i``.
+    base_raft_port
+        First Raft port – node *i* listens on ``base_raft_port + i``.
+
+    Returns
+    -------
+    str
+        The ``"{host}:{grpc_port}"`` address the new server is reachable at.
     """
     # Calculate ports for this server
     grpc_port = base_port + server_id
@@ -80,14 +90,12 @@ def start_server(server_id, num_servers, host='127.0.0.1', base_port=50051, base
     return f"{host}:{grpc_port}"
 
 def main():
-    """
-    Main entry point to start a cluster of fault-tolerant chat servers.
+    """Parse CLI flags and launch a full cluster.
 
-    This script parses command-line arguments to determine how many servers
-    to start, which host to bind them to, and the base ports for both gRPC
-    and Raft. It then launches each server as a subprocess and monitors
-    them. If any server crashes, it prints a warning message. The user can
-    terminate the entire cluster with Ctrl+C.
+    The method is intentionally blocking: it sits in an infinite loop and
+    monitors its children.  If any server dies, a warning is printed but the
+    script stays alive so that the rest of the cluster keeps running – mimicking
+    real‑world tolerance to node failures.
     """
     parser = argparse.ArgumentParser(description="Start a cluster of fault-tolerant chat servers")
     parser.add_argument("--servers", type=int, default=5, help="Number of servers to start")
