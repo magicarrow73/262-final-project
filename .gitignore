@@ -3,3 +3,4 @@ chat.db
 chat.db
 temp*.py
 *.txt
+*.toml
