@@ -31,10 +31,13 @@ class FTClient:
         for (txt, cmd) in [
             ("Create User",    self.create_user),
             ("Login",          self.login),
-            ("Start Auction",  self.start_auction),
+            ("Start Bundle Auction",   self.start_bundle),
+            ("Join Bundle Auction",    self.join_bundle),
+            ("List Bundle Auctions", self.list_bundle_auctions),
+            # ("Start Single-Item Auction",  self.start_auction),
             ("Submit Bid",     self.submit_bid),
             ("Get Winner",     self.get_winner),
-            ("List Auctions",  self.list_auctions),
+            # ("List Auctions",  self.list_auctions),
         ]:
             tk.Button(btn_frame, text=txt, width=12, command=cmd).pack(side=tk.LEFT, padx=5)
 
@@ -138,6 +141,85 @@ class FTClient:
         r = self.safe_rpc(self.auction_stub.StartAuction, req)
         if r: self.log_msg(f"StartAuction → {r.status}")
 
+    
+    def start_bundle(self):
+        aid = simpledialog.askstring("Bundle Auction", "Auction ID:")
+        if not aid:
+            return
+        items_csv = simpledialog.askstring("Bundle Auction",
+                                        "Comma-separated item names (CPU,GPU,…):")
+        if not items_csv:
+            return
+        dur = simpledialog.askinteger("Bundle Auction", "Duration (seconds, 0 = untimed):", initialvalue=0)
+        items = [s.strip() for s in items_csv.split(",") if s.strip()]
+        req = chat_pb2.StartBundleAuctionRequest(
+            auction_id=aid,
+            creator_id=self.current_user or "anon",
+            item_names=items,
+            duration_seconds=dur or 0
+        )
+        r = self.safe_rpc(self.auction_stub.StartBundleAuction, req)
+        if r:
+            self.log_msg(f"StartBundleAuction → {r.status}: {r.message}")
+
+
+    def join_bundle(self):
+        aid = simpledialog.askstring("Join Bundle Auction", "Auction ID:")
+        if not aid:
+            return
+        items_resp = self.safe_rpc(self.auction_stub.ListBundleItems,chat_pb2.ListBundleItemsRequest(auction_id=aid))
+        if not items_resp:
+            return
+        items = list(items_resp.item_names)
+        if not items:
+            messagebox.showerror("No items", "Auction not found or has no items.")
+            return
+
+        win = tk.Toplevel(self.root)
+        win.title(f"Bid on {aid}")
+        vars_ = [tk.IntVar() for _ in items]
+        for i, name in enumerate(items):
+            tk.Checkbutton(win, text=name, variable=vars_[i]).grid(row=i, column=0, sticky="w")
+        tk.Label(win, text="Value:").grid(row=0, column=1)
+        val_entry = tk.Entry(win); val_entry.grid(row=0, column=2)
+
+        def send_bid():
+            try:
+                value = float(val_entry.get())
+                assert value > 0
+            except Exception:
+                messagebox.showerror("Bad value", "Enter a positive number.")
+                return
+            bundle = [i for i,v in enumerate(vars_) if v.get()]
+            if not bundle:
+                messagebox.showerror("No items", "Select at least one item.")
+                return
+            r = self.safe_rpc(self.auction_stub.SubmitBundleBid,
+                chat_pb2.SingleMindedBid(
+                    auction_id=aid,
+                    bidder_id=self.current_user or "anon",
+                    item_ids=bundle,
+                    value=value
+                ))
+            if r is not None:
+                self.log_msg(f"Bid accepted on {aid}: {bundle} @ {value}")
+            win.destroy()
+
+        tk.Button(win, text="Submit Bid", command=send_bid)\
+        .grid(row=len(items), columnspan=3, pady=5)
+
+        def run_now():
+            res = self.safe_rpc(self.auction_stub.RunGreedyAuction,
+                chat_pb2.RunGreedyAuctionRequest(auction_id=aid,requester_id=self.current_user or "anon"))
+            if res:
+                msg = "\n".join(
+                    f"{w.bidder_id} wins {[items[i] for i in w.item_ids]} @ {w.payment:.2f}"
+                    for w in res.winners)
+                messagebox.showinfo("Results", msg or "No winners")
+        tk.Button(win, text="Run Auction", command=run_now).\
+        grid(row=len(items)+1, columnspan=3, pady=3)
+
+
     def submit_bid(self):
         if not self.current_user:
             messagebox.showwarning("Not logged in", "Please log in first.")
@@ -175,6 +257,25 @@ class FTClient:
         for a in r.auctions:
             status = "Ended" if a.ended else f"{a.time_left}s left"
             self.log_msg(f" • {a.auction_id}: {a.item_name} [{status}]")
+
+    def list_bundle_auctions(self):
+        r = self.safe_rpc(self.auction_stub.ListBundleAuctions, empty_pb2.Empty())
+        if not r: return
+        self.log_msg("Bundle Auctions:")
+
+        for a in r.auctions:
+            status = "Ended" if a.ended else f"{a.time_left}s left"
+            names  = ", ".join(a.item_names)
+            self.log_msg(f" • {a.auction_id}: [{names}]  {status}")
+            if a.ended:
+                res = self.safe_rpc(self.auction_stub.RunGreedyAuction,
+                                    chat_pb2.RunGreedyAuctionRequest(
+                                        auction_id=a.auction_id,
+                                        requester_id=self.current_user or ""))
+                if res:
+                    for w in res.winners:
+                        bundle = [a.item_names[i] for i in w.item_ids]
+                        self.log_msg(f"      → {w.bidder_id} wins {bundle} @ {w.payment:.2f}")
 
     def _start_notification_loop(self):
         t = threading.Thread(target=self._notification_loop, daemon=True)

@@ -27,8 +27,7 @@ if _version_not_supported:
 
 
 class AuthServiceStub(object):
-    """─── Services ────────────────────────────────────────────────────────────────
-
+    """──────────────────── Services ───────────────────────────────────────────────
     """
 
     def __init__(self, channel):
@@ -55,8 +54,7 @@ class AuthServiceStub(object):
 
 
 class AuthServiceServicer(object):
-    """─── Services ────────────────────────────────────────────────────────────────
-
+    """──────────────────── Services ───────────────────────────────────────────────
     """
 
     def CreateUser(self, request, context):
@@ -104,8 +102,7 @@ def add_AuthServiceServicer_to_server(servicer, server):
 
  # This class is part of an EXPERIMENTAL API.
 class AuthService(object):
-    """─── Services ────────────────────────────────────────────────────────────────
-
+    """──────────────────── Services ───────────────────────────────────────────────
     """
 
     @staticmethod
@@ -224,13 +221,39 @@ class AuctionServiceStub(object):
                 request_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
                 response_deserializer=chat__pb2.ListAuctionsResponse.FromString,
                 _registered_method=True)
+        self.StartBundleAuction = channel.unary_unary(
+                '/chat.AuctionService/StartBundleAuction',
+                request_serializer=chat__pb2.StartBundleAuctionRequest.SerializeToString,
+                response_deserializer=chat__pb2.StartBundleAuctionResponse.FromString,
+                _registered_method=True)
+        self.ListBundleItems = channel.unary_unary(
+                '/chat.AuctionService/ListBundleItems',
+                request_serializer=chat__pb2.ListBundleItemsRequest.SerializeToString,
+                response_deserializer=chat__pb2.ListBundleItemsResponse.FromString,
+                _registered_method=True)
+        self.SubmitBundleBid = channel.unary_unary(
+                '/chat.AuctionService/SubmitBundleBid',
+                request_serializer=chat__pb2.SingleMindedBid.SerializeToString,
+                response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+                _registered_method=True)
+        self.RunGreedyAuction = channel.unary_unary(
+                '/chat.AuctionService/RunGreedyAuction',
+                request_serializer=chat__pb2.RunGreedyAuctionRequest.SerializeToString,
+                response_deserializer=chat__pb2.GreedyResult.FromString,
+                _registered_method=True)
+        self.ListBundleAuctions = channel.unary_unary(
+                '/chat.AuctionService/ListBundleAuctions',
+                request_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
+                response_deserializer=chat__pb2.ListBundleAuctionsResponse.FromString,
+                _registered_method=True)
 
 
 class AuctionServiceServicer(object):
     """Missing associated documentation comment in .proto file."""
 
     def StartAuction(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """— single-item 2nd-price —
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
@@ -254,6 +277,37 @@ class AuctionServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def ListAuctions(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def StartBundleAuction(self, request, context):
+        """— bundle auction —
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListBundleItems(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def SubmitBundleBid(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def RunGreedyAuction(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListBundleAuctions(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -286,6 +340,31 @@ def add_AuctionServiceServicer_to_server(servicer, server):
                     servicer.ListAuctions,
                     request_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
                     response_serializer=chat__pb2.ListAuctionsResponse.SerializeToString,
+            ),
+            'StartBundleAuction': grpc.unary_unary_rpc_method_handler(
+                    servicer.StartBundleAuction,
+                    request_deserializer=chat__pb2.StartBundleAuctionRequest.FromString,
+                    response_serializer=chat__pb2.StartBundleAuctionResponse.SerializeToString,
+            ),
+            'ListBundleItems': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListBundleItems,
+                    request_deserializer=chat__pb2.ListBundleItemsRequest.FromString,
+                    response_serializer=chat__pb2.ListBundleItemsResponse.SerializeToString,
+            ),
+            'SubmitBundleBid': grpc.unary_unary_rpc_method_handler(
+                    servicer.SubmitBundleBid,
+                    request_deserializer=chat__pb2.SingleMindedBid.FromString,
+                    response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
+            ),
+            'RunGreedyAuction': grpc.unary_unary_rpc_method_handler(
+                    servicer.RunGreedyAuction,
+                    request_deserializer=chat__pb2.RunGreedyAuctionRequest.FromString,
+                    response_serializer=chat__pb2.GreedyResult.SerializeToString,
+            ),
+            'ListBundleAuctions': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListBundleAuctions,
+                    request_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+                    response_serializer=chat__pb2.ListBundleAuctionsResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -423,6 +502,141 @@ class AuctionService(object):
             '/chat.AuctionService/ListAuctions',
             google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
             chat__pb2.ListAuctionsResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def StartBundleAuction(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/chat.AuctionService/StartBundleAuction',
+            chat__pb2.StartBundleAuctionRequest.SerializeToString,
+            chat__pb2.StartBundleAuctionResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListBundleItems(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/chat.AuctionService/ListBundleItems',
+            chat__pb2.ListBundleItemsRequest.SerializeToString,
+            chat__pb2.ListBundleItemsResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def SubmitBundleBid(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/chat.AuctionService/SubmitBundleBid',
+            chat__pb2.SingleMindedBid.SerializeToString,
+            google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def RunGreedyAuction(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/chat.AuctionService/RunGreedyAuction',
+            chat__pb2.RunGreedyAuctionRequest.SerializeToString,
+            chat__pb2.GreedyResult.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListBundleAuctions(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/chat.AuctionService/ListBundleAuctions',
+            google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
+            chat__pb2.ListBundleAuctionsResponse.FromString,
             options,
             channel_credentials,
             insecure,
