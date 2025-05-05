@@ -22,7 +22,12 @@ This project implements a robust distributed combinatorial auction service using
 
 ### Initialization
 
-Please refer to the requirements-dev.txt file for information on the necessary contents of a virtual environment to run the service.
+Please refer to the requirements-dev.txt file for information on the necessary contents of a virtual environment to run the service. For setup it is recommended to run the following commands from the project root directory.
+
+```bash
+pip install -r requirements-dev.txt
+pip install -e .
+```
 
 ### Starting the Cluster
 
@@ -46,7 +51,11 @@ The client provides a simple GUI allowing users access to all the functionality 
 
 ## Testing
 
-We have included unit tests in the tests directory.
+We have included unit tests for our system in the tests directory. Please run the following command from the project root directory to run the tests.
+
+```bash
+pytest --cov=system_main --cov-report=term-missing -q
+```
 
 ## Engineering Notebook
 
