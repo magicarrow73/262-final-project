@@ -1,15 +1,5 @@
-"""
-raft_db.py
-
-This module provides a SQLite database helper (`DBHelper`) and a Raft-based
-wrapper (`RaftDB`) for replicated state management using `pysyncobj`.
-"""
-
-import os
 import sqlite3
 import threading
-import datetime
-import zoneinfo
 import time
 from pysyncobj import SyncObj, replicated, SyncObjConf
 
@@ -19,8 +9,8 @@ class DBHelper:
     """
     def __init__(self, db_path):
         self.__db_path = db_path
-        self.__conn = None            # will be dropped during pickling
-        self.__conn_lock = threading.Lock()  # will be dropped during pickling
+        self.__conn = None
+        self.__conn_lock = threading.Lock()
         self._init_db()
 
     def _get_connection(self):
@@ -95,86 +85,12 @@ class DBHelper:
             c.commit()
             return deleted
 
-    def insert_message(self, sender_id, receiver_id, content):
-        eastern = zoneinfo.ZoneInfo("America/New_York")
-        timestamp = datetime.datetime.now(eastern).isoformat()
-        with self.__conn_lock:
-            c = self._get_connection()
-            c.execute("""
-                INSERT INTO messages (sender_id, receiver_id, content, timestamp, read_status)
-                VALUES (?, ?, ?, ?, 0)
-            """, (sender_id, receiver_id, content, timestamp))
-            c.commit()
-        return True
-
-    def mark_message_read(self, message_id, receiver_id):
-        with self.__conn_lock:
-            c = self._get_connection()
-            cur = c.cursor()
-            cur.execute("""
-                UPDATE messages SET read_status = 1
-                WHERE id = ? AND receiver_id = ?
-            """, (message_id, receiver_id))
-            c.commit()
-            return cur.rowcount > 0
-
-    def delete_message(self, message_id, user_id):
-        with self.__conn_lock:
-            c = self._get_connection()
-            cur = c.cursor()
-            cur.execute("""
-                DELETE FROM messages
-                WHERE id = ? AND (sender_id = ? OR receiver_id = ?)
-            """, (message_id, user_id, user_id))
-            c.commit()
-            return cur.rowcount > 0
-
     def get_user_by_username(self, username):
         with self.__conn_lock:
             c = self._get_connection()
             cur = c.cursor()
             cur.execute("SELECT * FROM users WHERE username = ?", (username,))
             return cur.fetchone()
-
-    def list_users(self, pattern):
-        sql_pat = pattern.replace("*", "%").replace("?", "_")
-        with self.__conn_lock:
-            c = self._get_connection()
-            cur = c.cursor()
-            cur.execute("SELECT username, display_name FROM users WHERE username LIKE ?", (sql_pat,))
-            rows = cur.fetchall()
-            return [(r["username"], r["display_name"]) for r in rows]
-
-    def get_messages_for_user(self, receiver_id, only_unread=False, limit=None):
-        base = """
-        SELECT m.id, m.sender_id, m.receiver_id, m.content, m.timestamp, m.read_status,
-               sender.username AS sender_username
-        FROM messages m
-        JOIN users sender ON sender.id = m.sender_id
-        WHERE m.receiver_id = ?
-        """
-        if only_unread:
-            base += " AND m.read_status = 0"
-        base += " ORDER BY m.timestamp DESC"
-        with self.__conn_lock:
-            c = self._get_connection()
-            cur = c.cursor()
-            if limit:
-                base += " LIMIT ?"
-                cur.execute(base, (receiver_id, limit))
-            else:
-                cur.execute(base, (receiver_id,))
-            return cur.fetchall()
-
-    def get_unread_count(self, receiver_id):
-        with self.__conn_lock:
-            c = self._get_connection()
-            cur = c.cursor()
-            cur.execute("SELECT COUNT(*) AS cnt FROM messages WHERE receiver_id = ? AND read_status = 0",
-                        (receiver_id,))
-            row = cur.fetchone()
-            return row["cnt"] if row else 0
-
 
 class RaftDB(SyncObj):
     """
@@ -194,7 +110,6 @@ class RaftDB(SyncObj):
             connectionRetryDelay=0.5,
             connectionTimeout=10.0,
             leaderFallbackTimeout=10.0,
-            # postpone compaction until extremely large thresholds
             logCompactionMinEntries=10**12,
             logCompactionMinTime=10**12,
         )
@@ -220,25 +135,6 @@ class RaftDB(SyncObj):
         deleted = self.__db.delete_user(row["id"])
         self._active_users.pop(username, None)
         return deleted > 0
-
-    @replicated
-    def create_message(self, s, r, content):
-        sr = self.__db.get_user_by_username(s)
-        rr = self.__db.get_user_by_username(r)
-        if not sr or not rr: return False
-        return self.__db.insert_message(sr["id"], rr["id"], content)
-
-    @replicated
-    def mark_message_read(self, mid, username):
-        row = self.__db.get_user_by_username(username)
-        if not row: return False
-        return self.__db.mark_message_read(mid, row["id"])
-
-    @replicated
-    def delete_message(self, mid, username):
-        row = self.__db.get_user_by_username(username)
-        if not row: return False
-        return self.__db.delete_message(mid, row["id"])
 
     @replicated
     def user_login(self, username):
@@ -317,19 +213,6 @@ class RaftDB(SyncObj):
     # ---------- read-only methods ---------- #
     def get_user_by_username(self, username):
         return self.__db.get_user_by_username(username)
-
-    def list_users(self, pattern="*"):
-        return self.__db.list_users(pattern)
-
-    def get_messages_for_user(self, username, only_unread=False, limit=None):
-        row = self.__db.get_user_by_username(username)
-        if not row: return []
-        return self.__db.get_messages_for_user(row["id"], only_unread, limit)
-
-    def get_num_unread_messages(self, username):
-        row = self.__db.get_user_by_username(username)
-        if not row: return 0
-        return self.__db.get_unread_count(row["id"])
 
     def is_user_active(self, username):
         return username in self._active_users
