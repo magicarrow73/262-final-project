@@ -25,6 +25,8 @@ This project implements a robust distributed combinatorial auction service using
 Please refer to the requirements-dev.txt file for information on the necessary contents of a virtual environment to run the service. For setup it is recommended to run the following commands from the project root directory.
 
 ```bash
+conda create --name 262-env python=3.9
+conda activate 262-env
 pip install -r requirements-dev.txt
 pip install -e .
 ```
