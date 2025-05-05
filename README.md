@@ -1,7 +1,7 @@
 Group 10 (Kevin Cong, Russell Li)
 ---
 
-# gRPC Fault-Tolerant Chat System
+# CS 262 Final Project: Combinatorial Auction
 
 This project implements a robust distributed combinatorial auction service using gRPC and Raft consensus. Following the specifications, our system is designed to remain available and consistent even if several nodes fail. The state is replicated across a cluster of nodes, and users can create accounts, log in, start auctions, show bids, and review auction results.
 
@@ -19,6 +19,10 @@ This project implements a robust distributed combinatorial auction service using
 - **Automatic Reconnection:** The client automatically reconnects to surviving nodes if one or more nodes become unavailable.
 
 ## Usage
+
+### Initialization
+
+Please refer to the requirements-dev.txt file for information on the necessary contents of a virtual environment to run the service.
 
 ### Starting the Cluster
 
@@ -41,6 +45,8 @@ python ft_client_grpc.py --servers 127.0.0.1:50051,127.0.0.1:50052,127.0.0.1:500
 The client provides a simple GUI allowing users access to all the functionality of the auction system. 
 
 ## Testing
+
+We have included unit tests in the tests directory.
 
 ## Engineering Notebook
 
