@@ -21,6 +21,8 @@ class FTClient:
 
         self.known_auctions     = {}  # auction_id → ended flag
         self.submitted_auctions = set()
+        self.known_bundle_auctions = {}
+        self.submitted_bundles = set()
 
         # Build UI
         self.root = tk.Tk()
@@ -35,7 +37,7 @@ class FTClient:
             ("Join Bundle Auction",    self.join_bundle),
             ("List Bundle Auctions", self.list_bundle_auctions),
             # ("Start Single-Item Auction",  self.start_auction),
-            ("Submit Bid",     self.submit_bid),
+            # ("Submit Bid",     self.submit_bid),
             ("Get Winner",     self.get_winner),
             # ("List Auctions",  self.list_auctions),
         ]:
@@ -242,8 +244,18 @@ class FTClient:
     def get_winner(self):
         aid = simpledialog.askstring("Get Winner", "Auction ID:")
         if not aid: return
-        req = chat_pb2.GetWinnerRequest(auction_id=aid)
-        r = self.safe_rpc(self.auction_stub.GetWinner, req)
+
+        # bundle auction
+        br = self.safe_rpc(self.auction_stub.RunGreedyAuction, chat_pb2.RunGreedyAuctionRequest(auction_id = aid, requester_id = self.current_user or "anon"))
+        if br and getattr(br, "winners", None):
+            winners = ", ".join(
+                f"{w.bidder_id} → ${w.payment:.2f}"
+                for w in br.winners)
+            self.log_msg(f"[Bundle] {aid} → {winners or 'no valid allocation'}")
+            return
+        
+        # single item auction
+        r = self.safe_rpc(self.auction_stub.GetWinner,chat_pb2.GetWinnerRequest(auction_id=aid))
         if r:
             if r.status == "success":
                 self.log_msg(f"Winner: {r.winner_id}, pays {r.price}")
@@ -285,26 +297,43 @@ class FTClient:
         while True:
             time.sleep(5)
             r = self.safe_rpc(self.auction_stub.ListAuctions, empty_pb2.Empty())
-            if not r: continue
-            for a in r.auctions:
-                prev = self.known_auctions.get(a.auction_id)
-                if prev is None:
+            if r:
+                for a in r.auctions:
+                    prev = self.known_auctions.get(a.auction_id)
+                    if prev is None:
+                        self.known_auctions[a.auction_id] = a.ended
+                        continue
+                    if not prev and a.ended:
+                        msg = f"Auction {a.auction_id} ended: {a.item_name}"
+                        if a.auction_id in self.submitted_auctions:
+                            gr = self.safe_rpc(
+                                self.auction_stub.GetWinner,
+                                chat_pb2.GetWinnerRequest(auction_id=a.auction_id)
+                            )
+                            if gr and gr.status == "success":
+                                if gr.winner_id == self.current_user:
+                                    msg += f" — You won! Pay {gr.price}"
+                                else:
+                                    msg += f" — Winner: {gr.winner_id}, price: {gr.price}"
+                        self.root.after(0, lambda m=msg: self.log_msg(m))
                     self.known_auctions[a.auction_id] = a.ended
+
+            br = self.safe_rpc(self.auction_stub.ListBundleAuctions, empty_pb2.Empty())
+            if not br: continue
+
+            for b in br.auctions:
+                prev = self.known_bundle_auctions.get(b.auction_id)
+                if prev is None:
+                    self.known_bundle_auctions[b.auction_id] = b.ended
                     continue
-                if not prev and a.ended:
-                    msg = f"Auction {a.auction_id} ended: {a.item_name}"
-                    if a.auction_id in self.submitted_auctions:
-                        gr = self.safe_rpc(
-                            self.auction_stub.GetWinner,
-                            chat_pb2.GetWinnerRequest(auction_id=a.auction_id)
-                        )
-                        if gr and gr.status == "success":
-                            if gr.winner_id == self.current_user:
-                                msg += f" — You won! Pay {gr.price}"
-                            else:
-                                msg += f" — Winner: {gr.winner_id}, price: {gr.price}"
+                if not prev and b.ended:
+                    gr = self.safe_rpc(self.auction_stub.RunGreedyAuction, chat_pb2.RunGreedyAuctionRequest(auction_id=b.auction_id, requester_id=self.current_user or "anon"))
+                    msg = f"Bundle auction {b.auction_id} ended."
+                    if gr and gr.winners:
+                        winners = ", ".join(f"{w.bidder_id} pays ${w.payment:.2f}" for w in gr.winners)
+                        msg += " Winners → " + winners
                     self.root.after(0, lambda m=msg: self.log_msg(m))
-                self.known_auctions[a.auction_id] = a.ended
+                self.known_bundle_auctions[b.auction_id] = b.ended
 
     def run(self):
         self.root.mainloop()

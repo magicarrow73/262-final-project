@@ -1,6 +1,11 @@
-chat.db
-*.pyc
-chat.db
-temp*.py
-*.txt
-*.toml
+*.db*
+*.sqlite*
+*.log
+logging/
+__pycache__/
+*.py[cod]
+*.so
+*.pyd
+*.egg-info/
+dist/
+build/
