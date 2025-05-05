@@ -97,13 +97,13 @@ class AuctionService(chat_pb2_grpc.AuctionServiceServicer):
     def StartBundleAuction(self, req, ctx):
         try:
             self.raft.execute(
-                "INSERT INTO bundle_meta (auction_id,creator,deadline) VALUES (?,?,?)",
+                "INSERT OR IGNORE INTO bundle_meta (auction_id,creator,deadline) VALUES (?,?,?)",
                 (req.auction_id,
                 req.creator_id,
                 time.time()+req.duration_seconds if req.duration_seconds else None))
             for idx, name in enumerate(req.item_names):
                 self.raft.execute(
-                    "INSERT INTO bundle_item (auction_id,item_idx,item_name) VALUES (?,?,?)",
+                    "INSERT OR IGNORE INTO bundle_item (auction_id,item_idx,item_name) VALUES (?,?,?)",
                     (req.auction_id, idx, name))
             return chat_pb2.StartBundleAuctionResponse(status="success", message="created")
         except Exception:
@@ -216,17 +216,15 @@ class AuctionService(chat_pb2_grpc.AuctionServiceServicer):
             winners, pay = greedy_vcg(bids, item_count)
 
             # persist results atomically
-            self.raft.execute("BEGIN")
             self.raft.execute("UPDATE bundle_meta SET ended=1 WHERE auction_id=?",
                             (req.auction_id,))
             for w in winners:
                 self.raft.execute(
-                    "INSERT INTO bundle_winner (auction_id,bidder_id,bundlemask,payment)"
+                    "INSERT OR IGNORE INTO bundle_winner (auction_id,bidder_id,bundlemask,payment)"
                     " VALUES (?,?,?,?)",
                     (req.auction_id, w.bidder_id, w.bundle, pay[w.bidder_id]))
             self.raft.execute("DELETE FROM bundle_bid WHERE auction_id=?",
                             (req.auction_id,))
-            self.raft.execute("COMMIT")
 
         # build protobuf
         resp = chat_pb2.GreedyResult()

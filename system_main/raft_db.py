@@ -290,6 +290,29 @@ class RaftDB(SyncObj):
             price = bids[1][1]
             a["result"] = (w, wb, price)
         return True
+    
+    @replicated
+    def execute(self, sql: str, params: tuple = ()):
+        """
+        Replicated write: the SQL statement is appended to the Raft log,
+        then applied to every replica’s SQLite DB.
+        """
+        with self.__db._DBHelper__conn_lock:
+            cur = self.__db._get_connection()
+            cur.execute(sql, params)
+            cur.commit()
+        return True
+
+    def query(self, sql: str, params: tuple = ()):
+        """Local read helper → list(sqlite3.Row).  Reads need not replicate."""
+        with self.__db._DBHelper__conn_lock:
+            cur = self.__db._get_connection().execute(sql, params)
+            return list(cur.fetchall())
+
+    def query_one(self, sql: str, params: tuple = ()):
+        """Local read helper → first row or None."""
+        rows = self.query(sql, params)
+        return rows[0] if rows else None
 
     # ---------- read-only methods ---------- #
     def get_user_by_username(self, username):
