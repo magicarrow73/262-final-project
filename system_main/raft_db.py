@@ -64,15 +64,12 @@ class DBHelper:
     # ─── Prevent pickle of locks & connections ─────────────────────────────────
     def __getstate__(self):
         st = self.__dict__.copy()
-        # remove un-pickleable attributes
         st.pop('_DBHelper__conn_lock', None)
         st.pop('_DBHelper__conn', None)
         return st
 
     def __setstate__(self, st):
-        # restore state
         self.__dict__.update(st)
-        # recreate fresh lock and closed conn
         self.__conn_lock = threading.Lock()
         self.__conn = None
 
@@ -206,7 +203,7 @@ class RaftDB(SyncObj):
 
         # replicated in‑memory state
         self._active_users = {}      # username → True
-        self._auctions     = {}      # auction_id → {deadline, bids, ended, result}
+        self._auctions     = {}      # auction_id → {deadline, item_name, bids, ended, result}
 
     def close(self):
         self.__db.close()
@@ -254,14 +251,17 @@ class RaftDB(SyncObj):
 
     # ---------- auction methods ---------- #
     @replicated
-    def start_auction(self, auction_id, deadline_unix):
+    def start_auction(self, auction_id, duration_seconds, item_name):
         if auction_id in self._auctions:
             return False
+        now = int(time.time())
+        deadline = now + duration_seconds
         self._auctions[auction_id] = {
-            "deadline": deadline_unix,
-            "bids": [],
-            "ended": False,
-            "result": None
+            "deadline":  deadline,
+            "item_name": item_name,
+            "bids":      [],
+            "ended":     False,
+            "result":    None
         }
         return True
 
@@ -316,3 +316,12 @@ class RaftDB(SyncObj):
         if not a or not a["ended"]:
             return None
         return a["result"]
+
+    def list_auctions(self):
+        """
+        :returns: list of (auction_id, item_name, ended, deadline)
+        """
+        return [
+            (aid, info["item_name"], info["ended"], info["deadline"])
+            for aid, info in self._auctions.items()
+        ]

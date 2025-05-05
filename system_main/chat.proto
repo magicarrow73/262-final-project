@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package chat;
 
+import "google/protobuf/empty.proto";
+
 // ─── Authentication ───────────────────────────────────────────────────────────
 
 message CreateUserRequest {
@@ -30,8 +32,9 @@ message LogoutResponse { string status = 1; string message = 2; }
 // ─── 2nd‑Price Auction ───────────────────────────────────────────────────────
 
 message StartAuctionRequest {
-  string auction_id    = 1;
-  int64  deadline_unix = 2;
+  string auction_id       = 1;
+  int64  duration_seconds = 2;
+  string item_name        = 3;
 }
 message StartAuctionResponse {
   string status  = 1;
@@ -60,6 +63,18 @@ message GetWinnerResponse {
   double price       = 5;
 }
 
+// ─── Listing ──────────────────────────────────────────────────────────────────
+
+message AuctionInfo {
+  string auction_id = 1;
+  string item_name  = 2;
+  bool   ended      = 3;
+  int64  time_left  = 4;
+}
+message ListAuctionsResponse {
+  repeated AuctionInfo auctions = 1;
+}
+
 // ─── Services ────────────────────────────────────────────────────────────────
 
 service AuthService {
@@ -69,8 +84,9 @@ service AuthService {
 }
 
 service AuctionService {
-  rpc StartAuction (StartAuctionRequest)  returns (StartAuctionResponse);
-  rpc SubmitBid    (SubmitBidRequest)     returns (SubmitBidResponse);
-  rpc EndAuction   (EndAuctionRequest)     returns (EndAuctionResponse);
-  rpc GetWinner    (GetWinnerRequest)      returns (GetWinnerResponse);
+  rpc StartAuction   (StartAuctionRequest)   returns (StartAuctionResponse);
+  rpc SubmitBid      (SubmitBidRequest)      returns (SubmitBidResponse);
+  rpc EndAuction     (EndAuctionRequest)     returns (EndAuctionResponse);
+  rpc GetWinner      (GetWinnerRequest)      returns (GetWinnerResponse);
+  rpc ListAuctions   (google.protobuf.Empty) returns (ListAuctionsResponse);
 }

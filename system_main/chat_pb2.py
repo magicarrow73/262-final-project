@@ -22,45 +22,50 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 _sym_db = _symbol_database.Default()
 
 
+from google.protobuf import empty_pb2 as google_dot_protobuf_dot_empty__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\nchat.proto\x12\x04\x63hat\"T\n\x11\x43reateUserRequest\x12\x10\n\x08username\x18\x01 \x01(\t\x12\x17\n\x0fhashed_password\x18\x02 \x01(\t\x12\x14\n\x0c\x64isplay_name\x18\x03 \x01(\t\"G\n\x12\x43reateUserResponse\x12\x0e\n\x06status\x18\x01 \x01(\t\x12\x0f\n\x07message\x18\x02 \x01(\t\x12\x10\n\x08username\x18\x03 \x01(\t\"9\n\x0cLoginRequest\x12\x10\n\x08username\x18\x01 \x01(\t\x12\x17\n\x0fhashed_password\x18\x02 \x01(\t\"0\n\rLoginResponse\x12\x0e\n\x06status\x18\x01 \x01(\t\x12\x0f\n\x07message\x18\x02 \x01(\t\"!\n\rLogoutRequest\x12\x10\n\x08username\x18\x01 \x01(\t\"1\n\x0eLogoutResponse\x12\x0e\n\x06status\x18\x01 \x01(\t\x12\x0f\n\x07message\x18\x02 \x01(\t\"@\n\x13StartAuctionRequest\x12\x12\n\nauction_id\x18\x01 \x01(\t\x12\x15\n\rdeadline_unix\x18\x02 \x01(\x03\"7\n\x14StartAuctionResponse\x12\x0e\n\x06status\x18\x01 \x01(\t\x12\x0f\n\x07message\x18\x02 \x01(\t\"I\n\x10SubmitBidRequest\x12\x12\n\nauction_id\x18\x01 \x01(\t\x12\x11\n\tbidder_id\x18\x02 \x01(\t\x12\x0e\n\x06\x61mount\x18\x03 \x01(\x01\"4\n\x11SubmitBidResponse\x12\x0e\n\x06status\x18\x01 \x01(\t\x12\x0f\n\x07message\x18\x02 \x01(\t\"\'\n\x11\x45ndAuctionRequest\x12\x12\n\nauction_id\x18\x01 \x01(\t\"5\n\x12\x45ndAuctionResponse\x12\x0e\n\x06status\x18\x01 \x01(\t\x12\x0f\n\x07message\x18\x02 \x01(\t\"&\n\x10GetWinnerRequest\x12\x12\n\nauction_id\x18\x01 \x01(\t\"k\n\x11GetWinnerResponse\x12\x0e\n\x06status\x18\x01 \x01(\t\x12\x0f\n\x07message\x18\x02 \x01(\t\x12\x11\n\twinner_id\x18\x03 \x01(\t\x12\x13\n\x0bwinning_bid\x18\x04 \x01(\x01\x12\r\n\x05price\x18\x05 \x01(\x01\x32\xb5\x01\n\x0b\x41uthService\x12?\n\nCreateUser\x12\x17.chat.CreateUserRequest\x1a\x18.chat.CreateUserResponse\x12\x30\n\x05Login\x12\x12.chat.LoginRequest\x1a\x13.chat.LoginResponse\x12\x33\n\x06Logout\x12\x13.chat.LogoutRequest\x1a\x14.chat.LogoutResponse2\x94\x02\n\x0e\x41uctionService\x12\x45\n\x0cStartAuction\x12\x19.chat.StartAuctionRequest\x1a\x1a.chat.StartAuctionResponse\x12<\n\tSubmitBid\x12\x16.chat.SubmitBidRequest\x1a\x17.chat.SubmitBidResponse\x12?\n\nEndAuction\x12\x17.chat.EndAuctionRequest\x1a\x18.chat.EndAuctionResponse\x12<\n\tGetWinner\x12\x16.chat.GetWinnerRequest\x1a\x17.chat.GetWinnerResponseb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\nchat.proto\x12\x04\x63hat\x1a\x1bgoogle/protobuf/empty.proto\"T\n\x11\x43reateUserRequest\x12\x10\n\x08username\x18\x01 \x01(\t\x12\x17\n\x0fhashed_password\x18\x02 \x01(\t\x12\x14\n\x0c\x64isplay_name\x18\x03 \x01(\t\"G\n\x12\x43reateUserResponse\x12\x0e\n\x06status\x18\x01 \x01(\t\x12\x0f\n\x07message\x18\x02 \x01(\t\x12\x10\n\x08username\x18\x03 \x01(\t\"9\n\x0cLoginRequest\x12\x10\n\x08username\x18\x01 \x01(\t\x12\x17\n\x0fhashed_password\x18\x02 \x01(\t\"0\n\rLoginResponse\x12\x0e\n\x06status\x18\x01 \x01(\t\x12\x0f\n\x07message\x18\x02 \x01(\t\"!\n\rLogoutRequest\x12\x10\n\x08username\x18\x01 \x01(\t\"1\n\x0eLogoutResponse\x12\x0e\n\x06status\x18\x01 \x01(\t\x12\x0f\n\x07message\x18\x02 \x01(\t\"V\n\x13StartAuctionRequest\x12\x12\n\nauction_id\x18\x01 \x01(\t\x12\x18\n\x10\x64uration_seconds\x18\x02 \x01(\x03\x12\x11\n\titem_name\x18\x03 \x01(\t\"7\n\x14StartAuctionResponse\x12\x0e\n\x06status\x18\x01 \x01(\t\x12\x0f\n\x07message\x18\x02 \x01(\t\"I\n\x10SubmitBidRequest\x12\x12\n\nauction_id\x18\x01 \x01(\t\x12\x11\n\tbidder_id\x18\x02 \x01(\t\x12\x0e\n\x06\x61mount\x18\x03 \x01(\x01\"4\n\x11SubmitBidResponse\x12\x0e\n\x06status\x18\x01 \x01(\t\x12\x0f\n\x07message\x18\x02 \x01(\t\"\'\n\x11\x45ndAuctionRequest\x12\x12\n\nauction_id\x18\x01 \x01(\t\"5\n\x12\x45ndAuctionResponse\x12\x0e\n\x06status\x18\x01 \x01(\t\x12\x0f\n\x07message\x18\x02 \x01(\t\"&\n\x10GetWinnerRequest\x12\x12\n\nauction_id\x18\x01 \x01(\t\"k\n\x11GetWinnerResponse\x12\x0e\n\x06status\x18\x01 \x01(\t\x12\x0f\n\x07message\x18\x02 \x01(\t\x12\x11\n\twinner_id\x18\x03 \x01(\t\x12\x13\n\x0bwinning_bid\x18\x04 \x01(\x01\x12\r\n\x05price\x18\x05 \x01(\x01\"V\n\x0b\x41uctionInfo\x12\x12\n\nauction_id\x18\x01 \x01(\t\x12\x11\n\titem_name\x18\x02 \x01(\t\x12\r\n\x05\x65nded\x18\x03 \x01(\x08\x12\x11\n\ttime_left\x18\x04 \x01(\x03\";\n\x14ListAuctionsResponse\x12#\n\x08\x61uctions\x18\x01 \x03(\x0b\x32\x11.chat.AuctionInfo2\xb5\x01\n\x0b\x41uthService\x12?\n\nCreateUser\x12\x17.chat.CreateUserRequest\x1a\x18.chat.CreateUserResponse\x12\x30\n\x05Login\x12\x12.chat.LoginRequest\x1a\x13.chat.LoginResponse\x12\x33\n\x06Logout\x12\x13.chat.LogoutRequest\x1a\x14.chat.LogoutResponse2\xd8\x02\n\x0e\x41uctionService\x12\x45\n\x0cStartAuction\x12\x19.chat.StartAuctionRequest\x1a\x1a.chat.StartAuctionResponse\x12<\n\tSubmitBid\x12\x16.chat.SubmitBidRequest\x1a\x17.chat.SubmitBidResponse\x12?\n\nEndAuction\x12\x17.chat.EndAuctionRequest\x1a\x18.chat.EndAuctionResponse\x12<\n\tGetWinner\x12\x16.chat.GetWinnerRequest\x1a\x17.chat.GetWinnerResponse\x12\x42\n\x0cListAuctions\x12\x16.google.protobuf.Empty\x1a\x1a.chat.ListAuctionsResponseb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'chat_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_CREATEUSERREQUEST']._serialized_start=20
-  _globals['_CREATEUSERREQUEST']._serialized_end=104
-  _globals['_CREATEUSERRESPONSE']._serialized_start=106
-  _globals['_CREATEUSERRESPONSE']._serialized_end=177
-  _globals['_LOGINREQUEST']._serialized_start=179
-  _globals['_LOGINREQUEST']._serialized_end=236
-  _globals['_LOGINRESPONSE']._serialized_start=238
-  _globals['_LOGINRESPONSE']._serialized_end=286
-  _globals['_LOGOUTREQUEST']._serialized_start=288
-  _globals['_LOGOUTREQUEST']._serialized_end=321
-  _globals['_LOGOUTRESPONSE']._serialized_start=323
-  _globals['_LOGOUTRESPONSE']._serialized_end=372
-  _globals['_STARTAUCTIONREQUEST']._serialized_start=374
-  _globals['_STARTAUCTIONREQUEST']._serialized_end=438
-  _globals['_STARTAUCTIONRESPONSE']._serialized_start=440
-  _globals['_STARTAUCTIONRESPONSE']._serialized_end=495
-  _globals['_SUBMITBIDREQUEST']._serialized_start=497
-  _globals['_SUBMITBIDREQUEST']._serialized_end=570
-  _globals['_SUBMITBIDRESPONSE']._serialized_start=572
-  _globals['_SUBMITBIDRESPONSE']._serialized_end=624
-  _globals['_ENDAUCTIONREQUEST']._serialized_start=626
-  _globals['_ENDAUCTIONREQUEST']._serialized_end=665
-  _globals['_ENDAUCTIONRESPONSE']._serialized_start=667
-  _globals['_ENDAUCTIONRESPONSE']._serialized_end=720
-  _globals['_GETWINNERREQUEST']._serialized_start=722
-  _globals['_GETWINNERREQUEST']._serialized_end=760
-  _globals['_GETWINNERRESPONSE']._serialized_start=762
-  _globals['_GETWINNERRESPONSE']._serialized_end=869
-  _globals['_AUTHSERVICE']._serialized_start=872
-  _globals['_AUTHSERVICE']._serialized_end=1053
-  _globals['_AUCTIONSERVICE']._serialized_start=1056
-  _globals['_AUCTIONSERVICE']._serialized_end=1332
+  _globals['_CREATEUSERREQUEST']._serialized_start=49
+  _globals['_CREATEUSERREQUEST']._serialized_end=133
+  _globals['_CREATEUSERRESPONSE']._serialized_start=135
+  _globals['_CREATEUSERRESPONSE']._serialized_end=206
+  _globals['_LOGINREQUEST']._serialized_start=208
+  _globals['_LOGINREQUEST']._serialized_end=265
+  _globals['_LOGINRESPONSE']._serialized_start=267
+  _globals['_LOGINRESPONSE']._serialized_end=315
+  _globals['_LOGOUTREQUEST']._serialized_start=317
+  _globals['_LOGOUTREQUEST']._serialized_end=350
+  _globals['_LOGOUTRESPONSE']._serialized_start=352
+  _globals['_LOGOUTRESPONSE']._serialized_end=401
+  _globals['_STARTAUCTIONREQUEST']._serialized_start=403
+  _globals['_STARTAUCTIONREQUEST']._serialized_end=489
+  _globals['_STARTAUCTIONRESPONSE']._serialized_start=491
+  _globals['_STARTAUCTIONRESPONSE']._serialized_end=546
+  _globals['_SUBMITBIDREQUEST']._serialized_start=548
+  _globals['_SUBMITBIDREQUEST']._serialized_end=621
+  _globals['_SUBMITBIDRESPONSE']._serialized_start=623
+  _globals['_SUBMITBIDRESPONSE']._serialized_end=675
+  _globals['_ENDAUCTIONREQUEST']._serialized_start=677
+  _globals['_ENDAUCTIONREQUEST']._serialized_end=716
+  _globals['_ENDAUCTIONRESPONSE']._serialized_start=718
+  _globals['_ENDAUCTIONRESPONSE']._serialized_end=771
+  _globals['_GETWINNERREQUEST']._serialized_start=773
+  _globals['_GETWINNERREQUEST']._serialized_end=811
+  _globals['_GETWINNERRESPONSE']._serialized_start=813
+  _globals['_GETWINNERRESPONSE']._serialized_end=920
+  _globals['_AUCTIONINFO']._serialized_start=922
+  _globals['_AUCTIONINFO']._serialized_end=1008
+  _globals['_LISTAUCTIONSRESPONSE']._serialized_start=1010
+  _globals['_LISTAUCTIONSRESPONSE']._serialized_end=1069
+  _globals['_AUTHSERVICE']._serialized_start=1072
+  _globals['_AUTHSERVICE']._serialized_end=1253
+  _globals['_AUCTIONSERVICE']._serialized_start=1256
+  _globals['_AUCTIONSERVICE']._serialized_end=1600
 # @@protoc_insertion_point(module_scope)

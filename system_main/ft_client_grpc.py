@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
+import threading
+import time
 import tkinter as tk
 from tkinter import simpledialog, messagebox
-import grpc, argparse, time
+import grpc, argparse
 import chat_pb2, chat_pb2_grpc
+from google.protobuf import empty_pb2
 from utils import hash_password
 
 class FTClient:
@@ -16,6 +19,9 @@ class FTClient:
         self.max_retries = max_retries
         self.retry_delay = retry_delay
 
+        self.known_auctions     = {}  # auction_id → ended flag
+        self.submitted_auctions = set()
+
         # Build UI
         self.root = tk.Tk()
         self.root.title("FT Auction Client")
@@ -27,15 +33,17 @@ class FTClient:
             ("Login",          self.login),
             ("Start Auction",  self.start_auction),
             ("Submit Bid",     self.submit_bid),
-            ("Get Winner",     self.get_winner)
+            ("Get Winner",     self.get_winner),
+            ("List Auctions",  self.list_auctions),
         ]:
             tk.Button(btn_frame, text=txt, width=12, command=cmd).pack(side=tk.LEFT, padx=5)
 
         self.log = tk.Text(self.root, state='disabled', width=70, height=15)
         self.log.pack(padx=10, pady=(0,10))
 
-        # Initial connection
+        # Initial connection and start notification loop
         self.connect()
+        self._start_notification_loop()
 
     def log_msg(self, msg):
         self.log.config(state='normal')
@@ -52,11 +60,9 @@ class FTClient:
             addr = self.servers[self.idx]
             try:
                 ch = grpc.insecure_channel(addr)
-                # Remember this channel for safe_rpc
                 self.channel = ch
                 grpc.channel_ready_future(ch).result(timeout=5)
                 auth = chat_pb2_grpc.AuthServiceStub(ch)
-                # ping
                 auth.Login(
                     chat_pb2.LoginRequest(username="ping", hashed_password=hash_password("x")),
                     timeout=2
@@ -75,24 +81,21 @@ class FTClient:
 
     def safe_rpc(self, rpc_call, request):
         """
-        Try up to max_retries. On UNAVAILABLE, log that servers are reconfiguring
-        and return None so the UI can let the user retry.
+        Try up to max_retries. On UNAVAILABLE, reconnect and retry.
         """
         for _ in range(self.max_retries):
             try:
                 return rpc_call(request)
             except grpc.RpcError as e:
                 if e.code() == grpc.StatusCode.UNAVAILABLE:
-                    self.log_msg("Servers are reconfiguring—please try again shortly.")
+                    self.log_msg("Servers are reconfiguring—retrying...")
                     self.connect()
                     time.sleep(self.retry_delay)
-                    return None
-                # Non-transient error: show and bail
+                    continue
+                # non‑transient
                 details = e.details() if hasattr(e, 'details') else str(e)
                 self.log_msg(f"Error: {details}")
                 return None
-
-        # If we fall through all retries
         self.log_msg("Servers still reconfiguring—please try again later.")
         return None
 
@@ -107,8 +110,7 @@ class FTClient:
             display_name=""
         )
         r = self.safe_rpc(self.auth_stub.CreateUser, req)
-        if r is None: return
-        self.log_msg(f"CreateUser → {r.status}: {r.message}")
+        if r: self.log_msg(f"CreateUser → {r.status}: {r.message}")
 
     def login(self):
         u = simpledialog.askstring("Login", "Username:")
@@ -117,19 +119,24 @@ class FTClient:
         if pw is None: return
         req = chat_pb2.LoginRequest(username=u, hashed_password=hash_password(pw))
         r = self.safe_rpc(self.auth_stub.Login, req)
-        if r is None: return
-        self.log_msg(f"Login → {r.status}")
-        if r.status == "success":
-            self.current_user = u
+        if r:
+            self.log_msg(f"Login → {r.status}")
+            if r.status == "success":
+                self.current_user = u
 
     def start_auction(self):
         aid = simpledialog.askstring("Start Auction", "Auction ID:")
         if not aid: return
-        dl = int(time.time()) + 30
-        req = chat_pb2.StartAuctionRequest(auction_id=aid, deadline_unix=dl)
+        dur = simpledialog.askinteger("Start Auction", "Duration (seconds):")
+        item = simpledialog.askstring("Start Auction", "Item name:")
+        if dur is None: return
+        req = chat_pb2.StartAuctionRequest(
+            auction_id=aid,
+            duration_seconds=dur,
+            item_name=item or ""
+        )
         r = self.safe_rpc(self.auction_stub.StartAuction, req)
-        if r is None: return
-        self.log_msg(f"StartAuction → {r.status}")
+        if r: self.log_msg(f"StartAuction → {r.status}")
 
     def submit_bid(self):
         if not self.current_user:
@@ -145,19 +152,58 @@ class FTClient:
             amount=amt
         )
         r = self.safe_rpc(self.auction_stub.SubmitBid, req)
-        if r is None: return
-        self.log_msg(f"SubmitBid → {r.status}")
+        if r:
+            self.log_msg(f"SubmitBid → {r.status}")
+            if r.status == "success":
+                self.submitted_auctions.add(aid)
 
     def get_winner(self):
         aid = simpledialog.askstring("Get Winner", "Auction ID:")
         if not aid: return
         req = chat_pb2.GetWinnerRequest(auction_id=aid)
         r = self.safe_rpc(self.auction_stub.GetWinner, req)
-        if r is None: return
-        if r.status == "success":
-            self.log_msg(f"Winner: {r.winner_id}, pays {r.price}")
-        else:
-            self.log_msg(f"GetWinner → {r.status}: {r.message}")
+        if r:
+            if r.status == "success":
+                self.log_msg(f"Winner: {r.winner_id}, pays {r.price}")
+            else:
+                self.log_msg(f"GetWinner → {r.status}: {r.message}")
+
+    def list_auctions(self):
+        r = self.safe_rpc(self.auction_stub.ListAuctions, empty_pb2.Empty())
+        if not r: return
+        self.log_msg("Auctions:")
+        for a in r.auctions:
+            status = "Ended" if a.ended else f"{a.time_left}s left"
+            self.log_msg(f" • {a.auction_id}: {a.item_name} [{status}]")
+
+    def _start_notification_loop(self):
+        t = threading.Thread(target=self._notification_loop, daemon=True)
+        t.start()
+
+    def _notification_loop(self):
+        while True:
+            time.sleep(5)
+            r = self.safe_rpc(self.auction_stub.ListAuctions, empty_pb2.Empty())
+            if not r: continue
+            for a in r.auctions:
+                prev = self.known_auctions.get(a.auction_id)
+                if prev is None:
+                    self.known_auctions[a.auction_id] = a.ended
+                    continue
+                if not prev and a.ended:
+                    msg = f"Auction {a.auction_id} ended: {a.item_name}"
+                    if a.auction_id in self.submitted_auctions:
+                        gr = self.safe_rpc(
+                            self.auction_stub.GetWinner,
+                            chat_pb2.GetWinnerRequest(auction_id=a.auction_id)
+                        )
+                        if gr and gr.status == "success":
+                            if gr.winner_id == self.current_user:
+                                msg += f" — You won! Pay {gr.price}"
+                            else:
+                                msg += f" — Winner: {gr.winner_id}, price: {gr.price}"
+                    self.root.after(0, lambda m=msg: self.log_msg(m))
+                self.known_auctions[a.auction_id] = a.ended
 
     def run(self):
         self.root.mainloop()

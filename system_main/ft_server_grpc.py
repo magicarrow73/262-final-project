@@ -65,12 +65,12 @@ class AuctionService(chat_pb2_grpc.AuctionServiceServicer):
         self.raft = raft
 
     def StartAuction(self, req, ctx):
-        ok = self.raft.start_auction(req.auction_id, req.deadline_unix, sync=True)
-
-        # schedule the end on every node, not just leaders
-        delay = max(0, req.deadline_unix - int(time.time()))
-        threading.Timer(delay, lambda: self.raft.end_auction(req.auction_id, sync=True)).start()
-
+        ok = self.raft.start_auction(
+            req.auction_id,
+            req.duration_seconds,
+            req.item_name,
+            sync=True
+        )
         resp = chat_pb2.StartAuctionResponse(
             status="success" if ok else "error",
             message="started" if ok else "already exists"
@@ -109,6 +109,19 @@ class AuctionService(chat_pb2_grpc.AuctionServiceServicer):
         log_data_usage("GetWinner", req, resp)
         return resp
 
+    def ListAuctions(self, req, ctx):
+        resp = chat_pb2.ListAuctionsResponse()
+        now = int(time.time())
+        for aid, item, ended, deadline in self.raft.list_auctions():
+            tleft = max(0, deadline - now)
+            resp.auctions.add(
+                auction_id=aid,
+                item_name=item,
+                ended=ended,
+                time_left=tleft
+            )
+        return resp
+
 def serve(host, port, node_id, raft_port, peers):
     # initialize Raft-backed DB
     raft = RaftDB(f"{host}:{raft_port}", peers, f"node{node_id}.db")
@@ -122,6 +135,16 @@ def serve(host, port, node_id, raft_port, peers):
             time.sleep(5)
     threading.Thread(target=debug_raft, daemon=True).start()
 
+    # background watcher to reliably end auctions
+    def auction_watcher():
+        while True:
+            now = int(time.time())
+            for aid, item, ended, deadline in raft.list_auctions():
+                if not ended and now > deadline:
+                    raft.end_auction(aid, sync=True)
+            time.sleep(1)
+    threading.Thread(target=auction_watcher, daemon=True).start()
+
     # wait for cluster to form
     time.sleep(5)
 
@@ -129,12 +152,10 @@ def serve(host, port, node_id, raft_port, peers):
     chat_pb2_grpc.add_AuthServiceServicer_to_server(AuthService(raft), server)
     chat_pb2_grpc.add_AuctionServiceServicer_to_server(AuctionService(raft), server)
 
-    # bind on all interfaces so IPv4 and IPv6 clients connect
     server.add_insecure_port(f"[::]:{port}")
     server.start()
     print(f"Node{node_id} gRPC@[::]:{port}, Raft@{host}:{raft_port}")
 
-    # graceful shutdown on signals
     def handle_shutdown(signum, frame):
         print(f"Node{node_id} shutting down…")
         raft.close()
