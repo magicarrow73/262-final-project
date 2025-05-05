@@ -4,7 +4,7 @@ import time
 import tkinter as tk
 from tkinter import simpledialog, messagebox
 import grpc, argparse
-import chat_pb2, chat_pb2_grpc
+import auction_pb2, auction_pb2_grpc
 from google.protobuf import empty_pb2
 from utils import hash_password
 
@@ -67,13 +67,13 @@ class FTClient:
                 ch = grpc.insecure_channel(addr)
                 self.channel = ch
                 grpc.channel_ready_future(ch).result(timeout=5)
-                auth = chat_pb2_grpc.AuthServiceStub(ch)
+                auth = auction_pb2_grpc.AuthServiceStub(ch)
                 auth.Login(
-                    chat_pb2.LoginRequest(username="ping", hashed_password=hash_password("x")),
+                    auction_pb2.LoginRequest(username="ping", hashed_password=hash_password("x")),
                     timeout=2
                 )
                 self.auth_stub = auth
-                self.auction_stub = chat_pb2_grpc.AuctionServiceStub(ch)
+                self.auction_stub = auction_pb2_grpc.AuctionServiceStub(ch)
                 self.log_msg(f"Connected to {addr}")
                 return
             except Exception as e:
@@ -109,7 +109,7 @@ class FTClient:
         if not u: return
         pw = simpledialog.askstring("Create User", f"Password for {u}:", show="*")
         if pw is None: return
-        req = chat_pb2.CreateUserRequest(
+        req = auction_pb2.CreateUserRequest(
             username=u,
             hashed_password=hash_password(pw),
             display_name=""
@@ -122,7 +122,7 @@ class FTClient:
         if not u: return
         pw = simpledialog.askstring("Login", f"Password for {u}:", show="*")
         if pw is None: return
-        req = chat_pb2.LoginRequest(username=u, hashed_password=hash_password(pw))
+        req = auction_pb2.LoginRequest(username=u, hashed_password=hash_password(pw))
         r = self.safe_rpc(self.auth_stub.Login, req)
         if r:
             self.log_msg(f"Login → {r.status}")
@@ -135,7 +135,7 @@ class FTClient:
         dur = simpledialog.askinteger("Start Auction", "Duration (seconds):")
         item = simpledialog.askstring("Start Auction", "Item name:")
         if dur is None: return
-        req = chat_pb2.StartAuctionRequest(
+        req = auction_pb2.StartAuctionRequest(
             auction_id=aid,
             duration_seconds=dur,
             item_name=item or ""
@@ -154,7 +154,7 @@ class FTClient:
             return
         dur = simpledialog.askinteger("Bundle Auction", "Duration (seconds, 0 = untimed):", initialvalue=0)
         items = [s.strip() for s in items_csv.split(",") if s.strip()]
-        req = chat_pb2.StartBundleAuctionRequest(
+        req = auction_pb2.StartBundleAuctionRequest(
             auction_id=aid,
             creator_id=self.current_user or "anon",
             item_names=items,
@@ -169,7 +169,7 @@ class FTClient:
         aid = simpledialog.askstring("Join Bundle Auction", "Auction ID:")
         if not aid:
             return
-        items_resp = self.safe_rpc(self.auction_stub.ListBundleItems,chat_pb2.ListBundleItemsRequest(auction_id=aid))
+        items_resp = self.safe_rpc(self.auction_stub.ListBundleItems, auction_pb2.ListBundleItemsRequest(auction_id=aid))
         if not items_resp:
             return
         items = list(items_resp.item_names)
@@ -197,7 +197,7 @@ class FTClient:
                 messagebox.showerror("No items", "Select at least one item.")
                 return
             r = self.safe_rpc(self.auction_stub.SubmitBundleBid,
-                chat_pb2.SingleMindedBid(
+                auction_pb2.SingleMindedBid(
                     auction_id=aid,
                     bidder_id=self.current_user or "anon",
                     item_ids=bundle,
@@ -212,7 +212,7 @@ class FTClient:
 
         def run_now():
             res = self.safe_rpc(self.auction_stub.RunGreedyAuction,
-                chat_pb2.RunGreedyAuctionRequest(auction_id=aid,requester_id=self.current_user or "anon"))
+                auction_pb2.RunGreedyAuctionRequest(auction_id=aid,requester_id=self.current_user or "anon"))
             if res:
                 msg = "\n".join(
                     f"{w.bidder_id} wins {[items[i] for i in w.item_ids]} @ {w.payment:.2f}"
@@ -230,7 +230,7 @@ class FTClient:
         if not aid: return
         amt = simpledialog.askfloat("Submit Bid", f"Bid amount for {self.current_user}:")
         if amt is None: return
-        req = chat_pb2.SubmitBidRequest(
+        req = auction_pb2.SubmitBidRequest(
             auction_id=aid,
             bidder_id=self.current_user,
             amount=amt
@@ -246,7 +246,7 @@ class FTClient:
         if not aid: return
 
         # bundle auction
-        br = self.safe_rpc(self.auction_stub.RunGreedyAuction, chat_pb2.RunGreedyAuctionRequest(auction_id = aid, requester_id = self.current_user or "anon"))
+        br = self.safe_rpc(self.auction_stub.RunGreedyAuction, auction_pb2.RunGreedyAuctionRequest(auction_id = aid, requester_id = self.current_user or "anon"))
         if br and getattr(br, "winners", None):
             winners = ", ".join(
                 f"{w.bidder_id} → ${w.payment:.2f}"
@@ -255,7 +255,7 @@ class FTClient:
             return
         
         # single item auction
-        r = self.safe_rpc(self.auction_stub.GetWinner,chat_pb2.GetWinnerRequest(auction_id=aid))
+        r = self.safe_rpc(self.auction_stub.GetWinner, auction_pb2.GetWinnerRequest(auction_id=aid))
         if r:
             if r.status == "success":
                 self.log_msg(f"Winner: {r.winner_id}, pays {r.price}")
@@ -281,7 +281,7 @@ class FTClient:
             self.log_msg(f" • {a.auction_id}: [{names}]  {status}")
             if a.ended:
                 res = self.safe_rpc(self.auction_stub.RunGreedyAuction,
-                                    chat_pb2.RunGreedyAuctionRequest(
+                                    auction_pb2.RunGreedyAuctionRequest(
                                         auction_id=a.auction_id,
                                         requester_id=self.current_user or ""))
                 if res:
@@ -308,7 +308,7 @@ class FTClient:
                         if a.auction_id in self.submitted_auctions:
                             gr = self.safe_rpc(
                                 self.auction_stub.GetWinner,
-                                chat_pb2.GetWinnerRequest(auction_id=a.auction_id)
+                                auction_pb2.GetWinnerRequest(auction_id=a.auction_id)
                             )
                             if gr and gr.status == "success":
                                 if gr.winner_id == self.current_user:
@@ -327,7 +327,7 @@ class FTClient:
                     self.known_bundle_auctions[b.auction_id] = b.ended
                     continue
                 if not prev and b.ended:
-                    gr = self.safe_rpc(self.auction_stub.RunGreedyAuction, chat_pb2.RunGreedyAuctionRequest(auction_id=b.auction_id, requester_id=self.current_user or "anon"))
+                    gr = self.safe_rpc(self.auction_stub.RunGreedyAuction, auction_pb2.RunGreedyAuctionRequest(auction_id=b.auction_id, requester_id=self.current_user or "anon"))
                     msg = f"Bundle auction {b.auction_id} ended."
                     if gr and gr.winners:
                         winners = ", ".join(f"{w.bidder_id} pays ${w.payment:.2f}" for w in gr.winners)

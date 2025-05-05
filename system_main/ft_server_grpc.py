@@ -14,8 +14,8 @@ import grpc
 from concurrent import futures
 import argparse
 
-import chat_pb2
-import chat_pb2_grpc
+import auction_pb2
+import auction_pb2_grpc
 from raft_db import RaftDB
 from utils import verify_password
 from google.protobuf import empty_pb2
@@ -31,8 +31,8 @@ def start_grpc_server(db, port: int, max_workers: int = 10):
     """
     from concurrent import futures
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=max_workers))
-    chat_pb2_grpc.add_AuthServiceServicer_to_server(AuthService(db), server)
-    chat_pb2_grpc.add_AuctionServiceServicer_to_server(AuctionService(db), server)
+    auction_pb2_grpc.add_AuthServiceServicer_to_server(AuthService(db), server)
+    auction_pb2_grpc.add_AuctionServiceServicer_to_server(AuctionService(db), server)
     server.add_insecure_port(f"[::]:{port}")
     server.start()
     return server
@@ -42,17 +42,17 @@ def log_data_usage(method_name: str, request, response):
     with open(SERVER_LOG_FILE, "a") as f:
         f.write(header + f"{method_name},{len(request.SerializeToString())},{len(response.SerializeToString())}\n")
 
-class AuthService(chat_pb2_grpc.AuthServiceServicer):
+class AuthService(auction_pb2_grpc.AuthServiceServicer):
     def __init__(self, raft):
         self.raft = raft
 
     def CreateUser(self, req, ctx):
         existing = self.raft.get_user_by_username(req.username)
         if existing:
-            resp = chat_pb2.CreateUserResponse(status="user_exists", message="already exists", username=req.username)
+            resp = auction_pb2.CreateUserResponse(status="user_exists", message="already exists", username=req.username)
         else:
             ok = self.raft.create_user(req.username, req.hashed_password, req.display_name, sync=True)
-            resp = chat_pb2.CreateUserResponse(
+            resp = auction_pb2.CreateUserResponse(
                 status="success" if ok else "error",
                 message="created" if ok else "db error",
                 username=req.username
@@ -63,20 +63,20 @@ class AuthService(chat_pb2_grpc.AuthServiceServicer):
     def Login(self, req, ctx):
         user = self.raft.get_user_by_username(req.username)
         if not user or not verify_password(req.hashed_password, user["password_hash"]):
-            resp = chat_pb2.LoginResponse(status="error", message="bad credentials")
+            resp = auction_pb2.LoginResponse(status="error", message="bad credentials")
         else:
             self.raft.user_login(req.username, sync=True)
-            resp = chat_pb2.LoginResponse(status="success", message="logged in")
+            resp = auction_pb2.LoginResponse(status="success", message="logged in")
         log_data_usage("Login", req, resp)
         return resp
 
     def Logout(self, req, ctx):
         self.raft.user_logout(req.username, sync=True)
-        resp = chat_pb2.LogoutResponse(status="success", message="logged out")
+        resp = auction_pb2.LogoutResponse(status="success", message="logged out")
         log_data_usage("Logout", req, resp)
         return resp
 
-class AuctionService(chat_pb2_grpc.AuctionServiceServicer):
+class AuctionService(auction_pb2_grpc.AuctionServiceServicer):
     def __init__(self, raft):
         self.raft = raft
 
@@ -87,7 +87,7 @@ class AuctionService(chat_pb2_grpc.AuctionServiceServicer):
             req.item_name,
             sync=True
         )
-        resp = chat_pb2.StartAuctionResponse(
+        resp = auction_pb2.StartAuctionResponse(
             status="success" if ok else "error",
             message="started" if ok else "already exists"
         )
@@ -105,9 +105,9 @@ class AuctionService(chat_pb2_grpc.AuctionServiceServicer):
                 self.raft.execute(
                     "INSERT OR IGNORE INTO bundle_item (auction_id,item_idx,item_name) VALUES (?,?,?)",
                     (req.auction_id, idx, name))
-            return chat_pb2.StartBundleAuctionResponse(status="success", message="created")
+            return auction_pb2.StartBundleAuctionResponse(status="success", message="created")
         except Exception:
-            return chat_pb2.StartBundleAuctionResponse(status="error",   message="exists")
+            return auction_pb2.StartBundleAuctionResponse(status="error",   message="exists")
 
     def ListBundleItems(self, req, ctx):
         rows = self.raft.query(
@@ -115,10 +115,10 @@ class AuctionService(chat_pb2_grpc.AuctionServiceServicer):
             (req.auction_id,))
         if not rows:
             ctx.abort(grpc.StatusCode.NOT_FOUND, "auction unknown")
-        return chat_pb2.ListBundleItemsResponse(item_names=[n for (n,) in rows])
+        return auction_pb2.ListBundleItemsResponse(item_names=[n for (n,) in rows])
 
     def ListBundleAuctions(self, req, ctx):
-        resp = chat_pb2.ListBundleAuctionsResponse()
+        resp = auction_pb2.ListBundleAuctionsResponse()
         now  = time.time()
         for aid, dl, ended in self.raft.query(
                 "SELECT auction_id,deadline,ended FROM bundle_meta"):
@@ -151,7 +151,7 @@ class AuctionService(chat_pb2_grpc.AuctionServiceServicer):
 
     def EndAuction(self, req, ctx):
         ok = self.raft.end_auction(req.auction_id, sync=True)
-        resp = chat_pb2.EndAuctionResponse(
+        resp = auction_pb2.EndAuctionResponse(
             status="success" if ok else "error",
             message="ended" if ok else "no such or already ended"
         )
@@ -161,10 +161,10 @@ class AuctionService(chat_pb2_grpc.AuctionServiceServicer):
     def GetWinner(self, req, ctx):
         res = self.raft.get_auction_result(req.auction_id)
         if not res:
-            resp = chat_pb2.GetWinnerResponse(status="error", message="not closed or no such")
+            resp = auction_pb2.GetWinnerResponse(status="error", message="not closed or no such")
         else:
             w, wb, price = res
-            resp = chat_pb2.GetWinnerResponse(
+            resp = auction_pb2.GetWinnerResponse(
                 status="success", message="ok",
                 winner_id=w, winning_bid=wb, price=price
             )
@@ -172,7 +172,7 @@ class AuctionService(chat_pb2_grpc.AuctionServiceServicer):
         return resp
 
     def ListAuctions(self, req, ctx):
-        resp = chat_pb2.ListAuctionsResponse()
+        resp = auction_pb2.ListAuctionsResponse()
         now = int(time.time())
         for aid, item, ended, deadline in self.raft.list_auctions():
             tleft = max(0, deadline - now)
@@ -227,7 +227,7 @@ class AuctionService(chat_pb2_grpc.AuctionServiceServicer):
                             (req.auction_id,))
 
         # build protobuf
-        resp = chat_pb2.GreedyResult()
+        resp = auction_pb2.GreedyResult()
         for w in winners:
             bw = resp.winners.add()
             bw.bidder_id = w.bidder_id
@@ -289,8 +289,8 @@ def serve(host, port, node_id, raft_port, peers):
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     auth_svc    = AuthService(raft)
     auction_svc = AuctionService(raft)
-    chat_pb2_grpc.add_AuthServiceServicer_to_server(auth_svc, server)
-    chat_pb2_grpc.add_AuctionServiceServicer_to_server(auction_svc, server)
+    auction_pb2_grpc.add_AuthServiceServicer_to_server(auth_svc, server)
+    auction_pb2_grpc.add_AuctionServiceServicer_to_server(auction_svc, server)
 
     # background watcher to reliably end auctions
     def auction_watcher():
@@ -304,7 +304,7 @@ def serve(host, port, node_id, raft_port, peers):
                     "SELECT auction_id,creator FROM bundle_meta "
                     "WHERE ended=0 AND deadline IS NOT NULL AND deadline < ?",(now,)):
                 try:
-                    auction_svc.RunGreedyAuction(chat_pb2.RunGreedyAuctionRequest(auction_id=aid,requester_id=creator),None)
+                    auction_svc.RunGreedyAuction(auction_pb2.RunGreedyAuctionRequest(auction_id=aid,requester_id=creator),None)
                 except grpc.RpcError:
                     pass
 

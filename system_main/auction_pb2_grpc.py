@@ -3,7 +3,7 @@
 import grpc
 import warnings
 
-import chat_pb2 as chat__pb2
+import auction_pb2 as auction__pb2
 from google.protobuf import empty_pb2 as google_dot_protobuf_dot_empty__pb2
 
 GRPC_GENERATED_VERSION = '1.71.0'
@@ -19,7 +19,7 @@ except ImportError:
 if _version_not_supported:
     raise RuntimeError(
         f'The grpc package installed is at version {GRPC_VERSION},'
-        + f' but the generated code in chat_pb2_grpc.py depends on'
+        + f' but the generated code in auction_pb2_grpc.py depends on'
         + f' grpcio>={GRPC_GENERATED_VERSION}.'
         + f' Please upgrade your grpc module to grpcio>={GRPC_GENERATED_VERSION}'
         + f' or downgrade your generated code using grpcio-tools<={GRPC_VERSION}.'
@@ -37,19 +37,19 @@ class AuthServiceStub(object):
             channel: A grpc.Channel.
         """
         self.CreateUser = channel.unary_unary(
-                '/chat.AuthService/CreateUser',
-                request_serializer=chat__pb2.CreateUserRequest.SerializeToString,
-                response_deserializer=chat__pb2.CreateUserResponse.FromString,
+                '/auction.AuthService/CreateUser',
+                request_serializer=auction__pb2.CreateUserRequest.SerializeToString,
+                response_deserializer=auction__pb2.CreateUserResponse.FromString,
                 _registered_method=True)
         self.Login = channel.unary_unary(
-                '/chat.AuthService/Login',
-                request_serializer=chat__pb2.LoginRequest.SerializeToString,
-                response_deserializer=chat__pb2.LoginResponse.FromString,
+                '/auction.AuthService/Login',
+                request_serializer=auction__pb2.LoginRequest.SerializeToString,
+                response_deserializer=auction__pb2.LoginResponse.FromString,
                 _registered_method=True)
         self.Logout = channel.unary_unary(
-                '/chat.AuthService/Logout',
-                request_serializer=chat__pb2.LogoutRequest.SerializeToString,
-                response_deserializer=chat__pb2.LogoutResponse.FromString,
+                '/auction.AuthService/Logout',
+                request_serializer=auction__pb2.LogoutRequest.SerializeToString,
+                response_deserializer=auction__pb2.LogoutResponse.FromString,
                 _registered_method=True)
 
 
@@ -80,24 +80,24 @@ def add_AuthServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
             'CreateUser': grpc.unary_unary_rpc_method_handler(
                     servicer.CreateUser,
-                    request_deserializer=chat__pb2.CreateUserRequest.FromString,
-                    response_serializer=chat__pb2.CreateUserResponse.SerializeToString,
+                    request_deserializer=auction__pb2.CreateUserRequest.FromString,
+                    response_serializer=auction__pb2.CreateUserResponse.SerializeToString,
             ),
             'Login': grpc.unary_unary_rpc_method_handler(
                     servicer.Login,
-                    request_deserializer=chat__pb2.LoginRequest.FromString,
-                    response_serializer=chat__pb2.LoginResponse.SerializeToString,
+                    request_deserializer=auction__pb2.LoginRequest.FromString,
+                    response_serializer=auction__pb2.LoginResponse.SerializeToString,
             ),
             'Logout': grpc.unary_unary_rpc_method_handler(
                     servicer.Logout,
-                    request_deserializer=chat__pb2.LogoutRequest.FromString,
-                    response_serializer=chat__pb2.LogoutResponse.SerializeToString,
+                    request_deserializer=auction__pb2.LogoutRequest.FromString,
+                    response_serializer=auction__pb2.LogoutResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
-            'chat.AuthService', rpc_method_handlers)
+            'auction.AuthService', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
-    server.add_registered_method_handlers('chat.AuthService', rpc_method_handlers)
+    server.add_registered_method_handlers('auction.AuthService', rpc_method_handlers)
 
 
  # This class is part of an EXPERIMENTAL API.
@@ -119,9 +119,9 @@ class AuthService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/chat.AuthService/CreateUser',
-            chat__pb2.CreateUserRequest.SerializeToString,
-            chat__pb2.CreateUserResponse.FromString,
+            '/auction.AuthService/CreateUser',
+            auction__pb2.CreateUserRequest.SerializeToString,
+            auction__pb2.CreateUserResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -146,9 +146,9 @@ class AuthService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/chat.AuthService/Login',
-            chat__pb2.LoginRequest.SerializeToString,
-            chat__pb2.LoginResponse.FromString,
+            '/auction.AuthService/Login',
+            auction__pb2.LoginRequest.SerializeToString,
+            auction__pb2.LoginResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -173,9 +173,9 @@ class AuthService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/chat.AuthService/Logout',
-            chat__pb2.LogoutRequest.SerializeToString,
-            chat__pb2.LogoutResponse.FromString,
+            '/auction.AuthService/Logout',
+            auction__pb2.LogoutRequest.SerializeToString,
+            auction__pb2.LogoutResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -197,54 +197,54 @@ class AuctionServiceStub(object):
             channel: A grpc.Channel.
         """
         self.StartAuction = channel.unary_unary(
-                '/chat.AuctionService/StartAuction',
-                request_serializer=chat__pb2.StartAuctionRequest.SerializeToString,
-                response_deserializer=chat__pb2.StartAuctionResponse.FromString,
+                '/auction.AuctionService/StartAuction',
+                request_serializer=auction__pb2.StartAuctionRequest.SerializeToString,
+                response_deserializer=auction__pb2.StartAuctionResponse.FromString,
                 _registered_method=True)
         self.SubmitBid = channel.unary_unary(
-                '/chat.AuctionService/SubmitBid',
-                request_serializer=chat__pb2.SubmitBidRequest.SerializeToString,
-                response_deserializer=chat__pb2.SubmitBidResponse.FromString,
+                '/auction.AuctionService/SubmitBid',
+                request_serializer=auction__pb2.SubmitBidRequest.SerializeToString,
+                response_deserializer=auction__pb2.SubmitBidResponse.FromString,
                 _registered_method=True)
         self.EndAuction = channel.unary_unary(
-                '/chat.AuctionService/EndAuction',
-                request_serializer=chat__pb2.EndAuctionRequest.SerializeToString,
-                response_deserializer=chat__pb2.EndAuctionResponse.FromString,
+                '/auction.AuctionService/EndAuction',
+                request_serializer=auction__pb2.EndAuctionRequest.SerializeToString,
+                response_deserializer=auction__pb2.EndAuctionResponse.FromString,
                 _registered_method=True)
         self.GetWinner = channel.unary_unary(
-                '/chat.AuctionService/GetWinner',
-                request_serializer=chat__pb2.GetWinnerRequest.SerializeToString,
-                response_deserializer=chat__pb2.GetWinnerResponse.FromString,
+                '/auction.AuctionService/GetWinner',
+                request_serializer=auction__pb2.GetWinnerRequest.SerializeToString,
+                response_deserializer=auction__pb2.GetWinnerResponse.FromString,
                 _registered_method=True)
         self.ListAuctions = channel.unary_unary(
-                '/chat.AuctionService/ListAuctions',
+                '/auction.AuctionService/ListAuctions',
                 request_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
-                response_deserializer=chat__pb2.ListAuctionsResponse.FromString,
+                response_deserializer=auction__pb2.ListAuctionsResponse.FromString,
                 _registered_method=True)
         self.StartBundleAuction = channel.unary_unary(
-                '/chat.AuctionService/StartBundleAuction',
-                request_serializer=chat__pb2.StartBundleAuctionRequest.SerializeToString,
-                response_deserializer=chat__pb2.StartBundleAuctionResponse.FromString,
+                '/auction.AuctionService/StartBundleAuction',
+                request_serializer=auction__pb2.StartBundleAuctionRequest.SerializeToString,
+                response_deserializer=auction__pb2.StartBundleAuctionResponse.FromString,
                 _registered_method=True)
         self.ListBundleItems = channel.unary_unary(
-                '/chat.AuctionService/ListBundleItems',
-                request_serializer=chat__pb2.ListBundleItemsRequest.SerializeToString,
-                response_deserializer=chat__pb2.ListBundleItemsResponse.FromString,
+                '/auction.AuctionService/ListBundleItems',
+                request_serializer=auction__pb2.ListBundleItemsRequest.SerializeToString,
+                response_deserializer=auction__pb2.ListBundleItemsResponse.FromString,
                 _registered_method=True)
         self.SubmitBundleBid = channel.unary_unary(
-                '/chat.AuctionService/SubmitBundleBid',
-                request_serializer=chat__pb2.SingleMindedBid.SerializeToString,
+                '/auction.AuctionService/SubmitBundleBid',
+                request_serializer=auction__pb2.SingleMindedBid.SerializeToString,
                 response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
                 _registered_method=True)
         self.RunGreedyAuction = channel.unary_unary(
-                '/chat.AuctionService/RunGreedyAuction',
-                request_serializer=chat__pb2.RunGreedyAuctionRequest.SerializeToString,
-                response_deserializer=chat__pb2.GreedyResult.FromString,
+                '/auction.AuctionService/RunGreedyAuction',
+                request_serializer=auction__pb2.RunGreedyAuctionRequest.SerializeToString,
+                response_deserializer=auction__pb2.GreedyResult.FromString,
                 _registered_method=True)
         self.ListBundleAuctions = channel.unary_unary(
-                '/chat.AuctionService/ListBundleAuctions',
+                '/auction.AuctionService/ListBundleAuctions',
                 request_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
-                response_deserializer=chat__pb2.ListBundleAuctionsResponse.FromString,
+                response_deserializer=auction__pb2.ListBundleAuctionsResponse.FromString,
                 _registered_method=True)
 
 
@@ -318,59 +318,59 @@ def add_AuctionServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
             'StartAuction': grpc.unary_unary_rpc_method_handler(
                     servicer.StartAuction,
-                    request_deserializer=chat__pb2.StartAuctionRequest.FromString,
-                    response_serializer=chat__pb2.StartAuctionResponse.SerializeToString,
+                    request_deserializer=auction__pb2.StartAuctionRequest.FromString,
+                    response_serializer=auction__pb2.StartAuctionResponse.SerializeToString,
             ),
             'SubmitBid': grpc.unary_unary_rpc_method_handler(
                     servicer.SubmitBid,
-                    request_deserializer=chat__pb2.SubmitBidRequest.FromString,
-                    response_serializer=chat__pb2.SubmitBidResponse.SerializeToString,
+                    request_deserializer=auction__pb2.SubmitBidRequest.FromString,
+                    response_serializer=auction__pb2.SubmitBidResponse.SerializeToString,
             ),
             'EndAuction': grpc.unary_unary_rpc_method_handler(
                     servicer.EndAuction,
-                    request_deserializer=chat__pb2.EndAuctionRequest.FromString,
-                    response_serializer=chat__pb2.EndAuctionResponse.SerializeToString,
+                    request_deserializer=auction__pb2.EndAuctionRequest.FromString,
+                    response_serializer=auction__pb2.EndAuctionResponse.SerializeToString,
             ),
             'GetWinner': grpc.unary_unary_rpc_method_handler(
                     servicer.GetWinner,
-                    request_deserializer=chat__pb2.GetWinnerRequest.FromString,
-                    response_serializer=chat__pb2.GetWinnerResponse.SerializeToString,
+                    request_deserializer=auction__pb2.GetWinnerRequest.FromString,
+                    response_serializer=auction__pb2.GetWinnerResponse.SerializeToString,
             ),
             'ListAuctions': grpc.unary_unary_rpc_method_handler(
                     servicer.ListAuctions,
                     request_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
-                    response_serializer=chat__pb2.ListAuctionsResponse.SerializeToString,
+                    response_serializer=auction__pb2.ListAuctionsResponse.SerializeToString,
             ),
             'StartBundleAuction': grpc.unary_unary_rpc_method_handler(
                     servicer.StartBundleAuction,
-                    request_deserializer=chat__pb2.StartBundleAuctionRequest.FromString,
-                    response_serializer=chat__pb2.StartBundleAuctionResponse.SerializeToString,
+                    request_deserializer=auction__pb2.StartBundleAuctionRequest.FromString,
+                    response_serializer=auction__pb2.StartBundleAuctionResponse.SerializeToString,
             ),
             'ListBundleItems': grpc.unary_unary_rpc_method_handler(
                     servicer.ListBundleItems,
-                    request_deserializer=chat__pb2.ListBundleItemsRequest.FromString,
-                    response_serializer=chat__pb2.ListBundleItemsResponse.SerializeToString,
+                    request_deserializer=auction__pb2.ListBundleItemsRequest.FromString,
+                    response_serializer=auction__pb2.ListBundleItemsResponse.SerializeToString,
             ),
             'SubmitBundleBid': grpc.unary_unary_rpc_method_handler(
                     servicer.SubmitBundleBid,
-                    request_deserializer=chat__pb2.SingleMindedBid.FromString,
+                    request_deserializer=auction__pb2.SingleMindedBid.FromString,
                     response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
             ),
             'RunGreedyAuction': grpc.unary_unary_rpc_method_handler(
                     servicer.RunGreedyAuction,
-                    request_deserializer=chat__pb2.RunGreedyAuctionRequest.FromString,
-                    response_serializer=chat__pb2.GreedyResult.SerializeToString,
+                    request_deserializer=auction__pb2.RunGreedyAuctionRequest.FromString,
+                    response_serializer=auction__pb2.GreedyResult.SerializeToString,
             ),
             'ListBundleAuctions': grpc.unary_unary_rpc_method_handler(
                     servicer.ListBundleAuctions,
                     request_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
-                    response_serializer=chat__pb2.ListBundleAuctionsResponse.SerializeToString,
+                    response_serializer=auction__pb2.ListBundleAuctionsResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
-            'chat.AuctionService', rpc_method_handlers)
+            'auction.AuctionService', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
-    server.add_registered_method_handlers('chat.AuctionService', rpc_method_handlers)
+    server.add_registered_method_handlers('auction.AuctionService', rpc_method_handlers)
 
 
  # This class is part of an EXPERIMENTAL API.
@@ -391,9 +391,9 @@ class AuctionService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/chat.AuctionService/StartAuction',
-            chat__pb2.StartAuctionRequest.SerializeToString,
-            chat__pb2.StartAuctionResponse.FromString,
+            '/auction.AuctionService/StartAuction',
+            auction__pb2.StartAuctionRequest.SerializeToString,
+            auction__pb2.StartAuctionResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -418,9 +418,9 @@ class AuctionService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/chat.AuctionService/SubmitBid',
-            chat__pb2.SubmitBidRequest.SerializeToString,
-            chat__pb2.SubmitBidResponse.FromString,
+            '/auction.AuctionService/SubmitBid',
+            auction__pb2.SubmitBidRequest.SerializeToString,
+            auction__pb2.SubmitBidResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -445,9 +445,9 @@ class AuctionService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/chat.AuctionService/EndAuction',
-            chat__pb2.EndAuctionRequest.SerializeToString,
-            chat__pb2.EndAuctionResponse.FromString,
+            '/auction.AuctionService/EndAuction',
+            auction__pb2.EndAuctionRequest.SerializeToString,
+            auction__pb2.EndAuctionResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -472,9 +472,9 @@ class AuctionService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/chat.AuctionService/GetWinner',
-            chat__pb2.GetWinnerRequest.SerializeToString,
-            chat__pb2.GetWinnerResponse.FromString,
+            '/auction.AuctionService/GetWinner',
+            auction__pb2.GetWinnerRequest.SerializeToString,
+            auction__pb2.GetWinnerResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -499,9 +499,9 @@ class AuctionService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/chat.AuctionService/ListAuctions',
+            '/auction.AuctionService/ListAuctions',
             google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
-            chat__pb2.ListAuctionsResponse.FromString,
+            auction__pb2.ListAuctionsResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -526,9 +526,9 @@ class AuctionService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/chat.AuctionService/StartBundleAuction',
-            chat__pb2.StartBundleAuctionRequest.SerializeToString,
-            chat__pb2.StartBundleAuctionResponse.FromString,
+            '/auction.AuctionService/StartBundleAuction',
+            auction__pb2.StartBundleAuctionRequest.SerializeToString,
+            auction__pb2.StartBundleAuctionResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -553,9 +553,9 @@ class AuctionService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/chat.AuctionService/ListBundleItems',
-            chat__pb2.ListBundleItemsRequest.SerializeToString,
-            chat__pb2.ListBundleItemsResponse.FromString,
+            '/auction.AuctionService/ListBundleItems',
+            auction__pb2.ListBundleItemsRequest.SerializeToString,
+            auction__pb2.ListBundleItemsResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -580,8 +580,8 @@ class AuctionService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/chat.AuctionService/SubmitBundleBid',
-            chat__pb2.SingleMindedBid.SerializeToString,
+            '/auction.AuctionService/SubmitBundleBid',
+            auction__pb2.SingleMindedBid.SerializeToString,
             google_dot_protobuf_dot_empty__pb2.Empty.FromString,
             options,
             channel_credentials,
@@ -607,9 +607,9 @@ class AuctionService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/chat.AuctionService/RunGreedyAuction',
-            chat__pb2.RunGreedyAuctionRequest.SerializeToString,
-            chat__pb2.GreedyResult.FromString,
+            '/auction.AuctionService/RunGreedyAuction',
+            auction__pb2.RunGreedyAuctionRequest.SerializeToString,
+            auction__pb2.GreedyResult.FromString,
             options,
             channel_credentials,
             insecure,
@@ -634,9 +634,9 @@ class AuctionService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/chat.AuctionService/ListBundleAuctions',
+            '/auction.AuctionService/ListBundleAuctions',
             google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
-            chat__pb2.ListBundleAuctionsResponse.FromString,
+            auction__pb2.ListBundleAuctionsResponse.FromString,
             options,
             channel_credentials,
             insecure,
