@@ -21,6 +21,20 @@ from utils import verify_password
 
 SERVER_LOG_FILE = "server_data_usage.log"
 
+def start_grpc_server(db, port: int, max_workers: int = 10):
+    """
+    Wrap AuthService + AuctionService around an existing RaftDB and
+    start a gRPC server on the given port.  Returns the `grpc.Server`
+    so callers can stop it later with `server.stop(grace)`.
+    """
+    from concurrent import futures
+    server = grpc.server(futures.ThreadPoolExecutor(max_workers=max_workers))
+    chat_pb2_grpc.add_AuthServiceServicer_to_server(AuthService(db), server)
+    chat_pb2_grpc.add_AuctionServiceServicer_to_server(AuctionService(db), server)
+    server.add_insecure_port(f"[::]:{port}")
+    server.start()
+    return server
+
 def log_data_usage(method_name: str, request, response):
     header = "" if os.path.exists(SERVER_LOG_FILE) else "method,req_size,resp_size\n"
     with open(SERVER_LOG_FILE, "a") as f:

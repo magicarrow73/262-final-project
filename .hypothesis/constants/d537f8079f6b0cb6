@@ -1,0 +1,4 @@
+# file: /Users/russell_li/Desktop/Desktop_large/Harvard/Classes/2024-2025/CS-2620/262-final-project/system_main/chat_pb2_grpc.py
+# hypothesis_version: 6.131.9
+
+['1.71.0', 'CreateUser', 'EndAuction', 'GetWinner', 'ListAuctions', 'Login', 'Logout', 'StartAuction', 'SubmitBid', 'chat.AuctionService', 'chat.AuthService']

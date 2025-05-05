@@ -1,0 +1,4 @@
+# file: /Users/russell_li/Desktop/Desktop_large/Harvard/Classes/2024-2025/CS-2620/262-final-project/system_main/client_grpc.py
+# hypothesis_version: 6.131.9
+
+[12345, '*', ',', '--host', '--port', '127.0.0.1', 'Create Account', 'CreateUser', 'Delete Account', 'Delete Message(s)', 'Delete Msg', 'DeleteMessages', 'DeleteUser', 'Display Name', 'List', 'List Accounts', 'ListUsers', 'Login', 'Logout', 'Message', 'OK', 'Only Unread?', 'Password', 'Read', 'Read Messages', 'ReadMessages', 'Send', 'Send Message', 'SendMessage', 'To User', 'Username', '__main__', 'a', 'disabled', 'gRPC Chat Client', 'normal', 'success', 'w']

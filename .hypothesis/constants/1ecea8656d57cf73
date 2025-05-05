@@ -1,0 +1,4 @@
+# file: /Users/russell_li/Desktop/Desktop_large/Harvard/Classes/2024-2025/CS-2620/262-final-project/system_main/db.py
+# hypothesis_version: 6.131.9
+
+[' LIMIT ?', '%', '*', '?', 'America/New_York', 'CHAT_DB_PATH', '_', 'chat.db', 'cnt', 'display_name', 'id', 'username']

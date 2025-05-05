@@ -1,0 +1,4 @@
+# file: /Users/russell_li/Desktop/Desktop_large/Harvard/Classes/2024-2025/CS-2620/262-final-project/system_main/ft_server_grpc.py
+# hypothesis_version: 6.131.9
+
+[',', '--host', '--node-id', '--peers', '--port', '--raft-port', '127.0.0.1', 'Candidate', 'CreateUser', 'EndAuction', 'Follower', 'GetWinner', 'Leader', 'Login', 'Logout', 'StartAuction', 'SubmitBid', 'Unknown', '__main__', 'a', 'already exists', 'bad credentials', 'bid recorded', 'created', 'db error', 'ended', 'error', 'logged in', 'logged out', 'ok', 'password_hash', 'started', 'state', 'success', 'user_exists']
