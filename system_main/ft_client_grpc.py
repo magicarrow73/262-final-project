@@ -37,9 +37,7 @@ class FTClient:
             ("Join Bundle Auction",    self.join_bundle),
             ("List Bundle Auctions", self.list_bundle_auctions),
             # ("Start Single-Item Auction",  self.start_auction),
-            # ("Submit Bid",     self.submit_bid),
             ("Get Winner",     self.get_winner),
-            # ("List Auctions",  self.list_auctions),
         ]:
             tk.Button(btn_frame, text=txt, width=12, command=cmd).pack(side=tk.LEFT, padx=5)
 
@@ -221,26 +219,6 @@ class FTClient:
         tk.Button(win, text="Run Auction", command=run_now).\
         grid(row=len(items)+1, columnspan=3, pady=3)
 
-
-    def submit_bid(self):
-        if not self.current_user:
-            messagebox.showwarning("Not logged in", "Please log in first.")
-            return
-        aid = simpledialog.askstring("Submit Bid", "Auction ID:")
-        if not aid: return
-        amt = simpledialog.askfloat("Submit Bid", f"Bid amount for {self.current_user}:")
-        if amt is None: return
-        req = auction_pb2.SubmitBidRequest(
-            auction_id=aid,
-            bidder_id=self.current_user,
-            amount=amt
-        )
-        r = self.safe_rpc(self.auction_stub.SubmitBid, req)
-        if r:
-            self.log_msg(f"SubmitBid → {r.status}")
-            if r.status == "success":
-                self.submitted_auctions.add(aid)
-
     def get_winner(self):
         aid = simpledialog.askstring("Get Winner", "Auction ID:")
         if not aid: return
@@ -261,14 +239,6 @@ class FTClient:
                 self.log_msg(f"Winner: {r.winner_id}, pays {r.price}")
             else:
                 self.log_msg(f"GetWinner → {r.status}: {r.message}")
-
-    def list_auctions(self):
-        r = self.safe_rpc(self.auction_stub.ListAuctions, empty_pb2.Empty())
-        if not r: return
-        self.log_msg("Auctions:")
-        for a in r.auctions:
-            status = "Ended" if a.ended else f"{a.time_left}s left"
-            self.log_msg(f" • {a.auction_id}: {a.item_name} [{status}]")
 
     def list_bundle_auctions(self):
         r = self.safe_rpc(self.auction_stub.ListBundleAuctions, empty_pb2.Empty())

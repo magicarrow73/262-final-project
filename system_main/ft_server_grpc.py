@@ -326,6 +326,64 @@ def serve(host, port, node_id, raft_port, peers):
 
     server.wait_for_termination()
 
+
+# test only helper
+from typing import Optional, List
+import threading
+
+def _create_server(
+    *,
+    node_id: str,
+    raft_port: int,
+    grpc_port: int,
+    peer_raft_addrs: Optional[List[str]] = None,
+    db_path: str = ":memory:",
+):
+    """
+    Programmatic entry point for pytest:
+      • boots SyncObj/RaftDB
+      • registers AuthService + AuctionService
+      • returns (public_addr, stop_event) so tests can cleanly shut down.
+    """
+    # Local imports to avoid polluting global namespace when used as CLI
+    import concurrent.futures
+    import grpc
+
+    from .raft_db import RaftDB
+    import auction_pb2_grpc
+
+    # -------- 1.  Create replicated DB ---------------------------------
+    self_addr   = f"127.0.0.1:{raft_port}"
+    peer_addrs  = peer_raft_addrs or []
+    rdb         = RaftDB(self_addr, peer_addrs, db_path)
+
+    # -------- 2.  Build gRPC server & services --------------------------
+    server = grpc.server(concurrent.futures.ThreadPoolExecutor(max_workers=10))
+
+    # Instantiate your existing servicer classes
+    auth_srv    = AuthService(rdb)          # already defined in this file
+    auction_srv = AuctionService(rdb)       # already defined in this file
+
+    # Register them
+    auction_pb2_grpc.add_AuthServiceServicer_to_server(auth_srv, server)
+    auction_pb2_grpc.add_AuctionServiceServicer_to_server(auction_srv, server)
+
+    # Bind port & start
+    public_addr = f"127.0.0.1:{grpc_port}"
+    server.add_insecure_port(public_addr)
+
+    # -------- 3.  Build a stop Event for the tests ----------------------
+    stop_evt = threading.Event()
+
+    def _graceful_shutdown():
+        stop_evt.wait()          # block until caller sets it
+        server.stop(grace=0)     # immediate but graceful
+        rdb.close()
+
+    threading.Thread(target=_graceful_shutdown, daemon=True).start()
+
+    return server, stop_evt
+
 if __name__ == "__main__":
     p = argparse.ArgumentParser()
     p.add_argument("--node-id",   type=int, required=True)
